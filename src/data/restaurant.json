@@ -1,0 +1,150 @@
+{
+  "id": "mahant-prasadam-001",
+  "name": "Mahant Prasadam",
+  "description": "Authentic Indian vegetarian cuisine served with devotion",
+  "image": "https://via.placeholder.com/400x200",
+  "rating": 4.5,
+  "deliveryTime": "25-30 mins",
+  "cuisines": ["Indian", "Vegetarian", "North Indian", "South Indian"],
+  "sections": [
+    {
+      "id": "starters",
+      "name": "Starters",
+      "items": [
+        {
+          "id": "samosa",
+          "name": "Samosa",
+          "description": "Crispy fried pastry with spiced potato filling",
+          "price": 3000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "starters",
+          "isVeg": true,
+          "rating": 4.3,
+          "tags": ["Crispy", "Spicy"]
+        },
+        {
+          "id": "paneer-tikka",
+          "name": "Paneer Tikka",
+          "description": "Grilled cottage cheese marinated in spices",
+          "price": 15000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "starters",
+          "isVeg": true,
+          "rating": 4.7,
+          "tags": ["Grilled", "Protein Rich"]
+        }
+      ]
+    },
+    {
+      "id": "main-course",
+      "name": "Main Course",
+      "items": [
+        {
+          "id": "dal-makhani",
+          "name": "Dal Makhani",
+          "description": "Creamy black lentils cooked with butter and spices",
+          "price": 18000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "main-course",
+          "isVeg": true,
+          "rating": 4.8,
+          "tags": ["Creamy", "Rich"]
+        },
+        {
+          "id": "paneer-butter-masala",
+          "name": "Paneer Butter Masala",
+          "description": "Cottage cheese in rich tomato and butter gravy",
+          "price": 22000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "main-course",
+          "isVeg": true,
+          "rating": 4.6,
+          "tags": ["Creamy", "Popular"]
+        },
+        {
+          "id": "rajma",
+          "name": "Rajma",
+          "description": "Red kidney beans in spiced tomato gravy",
+          "price": 16000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "main-course",
+          "isVeg": true,
+          "rating": 4.4,
+          "tags": ["Protein Rich", "Comfort Food"]
+        }
+      ]
+    },
+    {
+      "id": "rice-bread",
+      "name": "Rice & Bread",
+      "items": [
+        {
+          "id": "jeera-rice",
+          "name": "Jeera Rice",
+          "description": "Basmati rice cooked with cumin seeds",
+          "price": 12000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "rice-bread",
+          "isVeg": true,
+          "rating": 4.2,
+          "tags": ["Aromatic", "Light"]
+        },
+        {
+          "id": "butter-naan",
+          "name": "Butter Naan",
+          "description": "Soft Indian bread brushed with butter",
+          "price": 5000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "rice-bread",
+          "isVeg": true,
+          "rating": 4.5,
+          "tags": ["Soft", "Buttery"]
+        }
+      ]
+    },
+    {
+      "id": "desserts",
+      "name": "Desserts",
+      "items": [
+        {
+          "id": "gulab-jamun",
+          "name": "Gulab Jamun",
+          "description": "Soft milk dumplings in sugar syrup",
+          "price": 8000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "desserts",
+          "isVeg": true,
+          "rating": 4.6,
+          "tags": ["Sweet", "Traditional"]
+        },
+        {
+          "id": "rasgulla",
+          "name": "Rasgulla",
+          "description": "Spongy cottage cheese balls in sugar syrup",
+          "price": 6000,
+          "image": "https://via.placeholder.com/150x150",
+          "category": "desserts",
+          "isVeg": true,
+          "rating": 4.4,
+          "tags": ["Light", "Sweet"]
+        }
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "review-1",
+      "userName": "Rajesh Kumar",
+      "rating": 5,
+      "comment": "Amazing food quality and taste. Highly recommended!",
+      "date": "2024-08-15"
+    },
+    {
+      "id": "review-2",
+      "userName": "Priya Sharma",
+      "rating": 4,
+      "comment": "Good food but delivery was a bit delayed.",
+      "date": "2024-08-14"
+    }
+  ]
+}
