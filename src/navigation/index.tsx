@@ -8,89 +8,100 @@ import { useSelector } from 'react-redux';
 import { colors } from '../theme/colors';
 import { selectCartTotalItems } from '../store/slices/cartSlice';
 
-// Screens
-import HomeScreen from '../screens/HomeScreen';
-import RestaurantScreen from '../screens/RestaurantScreen';
+// screens
+import MainHomeScreen from '../screens/MainHomeScreen';
+import ServingMethodScreen from '../screens/ServingMethodScreen';
 import CartScreen from '../screens/CartScreen';
 import OrdersScreen from '../screens/OrdersScreen';
+import HomeScreen from '../screens/HomeScreen'; // using as Feedback placeholder
+import ProfileScreen from '../screens/ProfileScreen';
+import LoginScreen from '../screens/LoginScreen';
+import PickupLocationScreen from '../screens/PickupLocationScreen';
+import PrasadSelectionScreen from '../screens/PrasadSelectionScreen';
+import OrderSummaryScreen from '../screens/OrderSummaryScreen';
 
+// ---------- Home stack (keeps tab bar while pushing "Serving") ----------
+const HomeStack = createNativeStackNavigator();
+function HomeStackNavigator() {
+  return (
+ <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+  <HomeStack.Screen name="MainHome" component={MainHomeScreen} />
+  <HomeStack.Screen name="Serving" component={ServingMethodScreen} />
+  <HomeStack.Screen name="Location" component={PickupLocationScreen} />
+  <HomeStack.Screen name="Ordersummary" component={OrderSummaryScreen} />
+
+</HomeStack.Navigator>
+  );
+}
+
+// ---------- Tabs (exactly 5) ----------
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
-
 function TabNavigator() {
   const cartTotalItems = useSelector(selectCartTotalItems);
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: string;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Cart') {
-            iconName = 'cart';
-          } else if (route.name === 'Orders') {
-            iconName = 'receipt';
-          } else {
-            iconName = 'help';
-          }
-
-          return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
-        },
+        tabBarIcon: ({ color, size }) => (
+          <MaterialCommunityIcons
+            name={
+              route.name === 'Home'     ? 'home' :
+              route.name === 'Cart'     ? 'cart' :
+              route.name === 'Orders'   ? 'receipt' :
+              route.name === 'Feedback' ? 'message-text' :
+              route.name === 'Profile'  ? 'account-circle' : 'help'
+            }
+            color={color}
+            size={size}
+          />
+        ),
+        headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-        },
-        headerStyle: {
-          backgroundColor: colors.surface,
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          color: colors.text,
-        },
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      {/* 1) HOME tab is the stack that also contains Serving */}
+      <Tab.Screen name="Home" component={HomeStackNavigator} />
+
+      {/* 2) CART */}
       <Tab.Screen
         name="Cart"
         component={CartScreen}
-        options={{
-          tabBarBadge: cartTotalItems > 0 ? cartTotalItems : undefined,
-        }}
+        options={{ tabBarBadge: cartTotalItems > 0 ? cartTotalItems : undefined }}
       />
+
+      {/* 3) ORDERS */}
       <Tab.Screen name="Orders" component={OrdersScreen} />
+
+      {/* 4) FEEDBACK (using HomeScreen as placeholder) */}
+      <Tab.Screen name="Feedback" component={HomeScreen} />
+
+      {/* 5) PROFILE */}
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
+// ---------- Root stack (handles auth vs app) ----------
+const RootStack = createNativeStackNavigator();
+
 export default function Navigation() {
+  const isLoggedIn = false; // wire up to your auth state when ready
+
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: colors.surface,
-          },
-          headerTintColor: colors.text,
-          headerTitleStyle: {
-            color: colors.text,
-          },
-        }}
+      <RootStack.Navigator
+        initialRouteName={isLoggedIn ? 'Parasad' : 'Login'}
+        screenOptions={{ headerShown: false }}
       >
-        <Stack.Screen
-          name="MainTabs"
-          component={TabNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Restaurant"
-          component={RestaurantScreen}
-          options={{ title: 'Menu' }}
-        />
-      </Stack.Navigator>
+        <RootStack.Screen name="Login" component={LoginScreen} />
+        <RootStack.Screen name="Parasad" component={PrasadSelectionScreen} />
+
+
+
+        <RootStack.Screen name="MainTabs" component={TabNavigator} />
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 }

@@ -1,0 +1,58 @@
+{
+  "id": "mahant-prasadam-001",
+  "name": "Mahant Prasadam",
+  "description": "Authentic Indian vegetarian cuisine served with devotion",
+  "categories": [
+    {
+      "id": "bowl",
+      "name": "Bowl",
+      "items": [
+        {
+          "id": "disposable-bowl-001",
+          "name": "Disposable Bowl",
+          "description": "Eco-friendly disposable bowl for serving curries, rice, or desserts",
+          "material": "Paper / Areca / Plastic",
+          "capacity": "350 ml",
+          "isVeg": true,
+          "rating": 4.5,
+          "image": "https://example.com/disposable-bowl.png",
+          "price": 2000
+        }
+      ]
+    },
+    {
+      "id": "dish",
+      "name": "Dish",
+      "items": [
+        {
+          "id": "disposable-dish-001",
+          "name": "Disposable Dish",
+          "description": "Lightweight disposable dish for snacks and meals",
+          "material": "Paper / Areca",
+          "size": "10 inch",
+          "isVeg": true,
+          "rating": 4.4,
+          "image": "https://example.com/disposable-dish.png",
+          "price": 1500
+        }
+      ]
+    },
+    {
+      "id": "glass",
+      "name": "Glass",
+      "items": [
+        {
+          "id": "disposable-glass-001",
+          "name": "Disposable Glass",
+          "description": "Disposable glass suitable for cold and hot beverages",
+          "material": "Paper / Plastic",
+          "capacity": "250 ml",
+          "isVeg": true,
+          "rating": 4.6,
+          "image": "https://example.com/disposable-glass.png",
+          "price": 1000
+        }
+      ]
+    }
+  ]
+}

@@ -18,11 +18,11 @@ import { RootState } from '../store';
 import RatingStars from './RatingStars';
 import Tag from './Tag';
 
-interface MenuItemCardProps {
+interface ServingCardProps {
   item: MenuItem;
 }
 
-const MenuItemCard: React.FC<MenuItemCardProps> = ({ item }) => {
+const ServingCard: React.FC<ServingCardProps> = ({ item }) => {
   const dispatch = useDispatch();
   const quantity = useSelector((state: RootState) =>
     selectCartItemQuantity(state, item.id)
@@ -83,13 +83,13 @@ const MenuItemCard: React.FC<MenuItemCardProps> = ({ item }) => {
           ) : (
             <View style={styles.quantityContainer}>
               <TouchableOpacity style={styles.quantityButton} onPress={handleDecrement}>
-                <MaterialCommunityIcons name="minus" size={16} color={colors.primary} />
+                <MaterialCommunityIcons name="minus" size={16} color="#036197" />
               </TouchableOpacity>
 
               <Text style={styles.quantity}>{quantity}</Text>
 
               <TouchableOpacity style={styles.quantityButton} onPress={handleIncrement}>
-                <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+                <MaterialCommunityIcons name="plus" size={16} color="#036197" />
               </TouchableOpacity>
             </View>
           )}
@@ -107,8 +107,8 @@ container: {
   marginHorizontal: 16,
   // overflow: '',
   borderWidth: 0.6,
-  borderColor: "#f28c27",
-  shadowColor: '#f5bb8247',
+  borderColor: "#036197",
+  shadowColor: '#79bce328',
   shadowOffset: { width: 4, height: 4 },
   shadowOpacity: 3,
   shadowRadius: 4,
@@ -117,7 +117,7 @@ container: {
 
   image: {
     width: '100%',
-    height: 250,
+    height: 200,
     backgroundColor: "#fff",
     borderRadius: 12,
   },
@@ -139,7 +139,7 @@ container: {
   description: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 12,
+    marginBottom: 8,
     lineHeight: 20,
   },
   ratingContainer: {
@@ -166,10 +166,10 @@ container: {
   price: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: "#036197",
   },
   addButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#036197",
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 8,
@@ -185,7 +185,7 @@ container: {
     backgroundColor: colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: "#036197",
   },
   quantityButton: {
     padding: 8,
@@ -200,4 +200,4 @@ container: {
   },
 });
 
-export default MenuItemCard;
+export default ServingCard;

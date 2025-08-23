@@ -11,6 +11,8 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { addOrderFromCart } from '../store/slices/ordersSlice';
+
 import { colors } from '../theme/colors';
 import { formatINR } from '../utils/currency';
 import {
@@ -22,14 +24,16 @@ import {
   removeItem,
   clearCart
 } from '../store/slices/cartSlice';
+import { useNavigation } from '@react-navigation/native';
 import { RootState } from '../store';
+import Header from '../components/Header';
 
 const CartScreen: React.FC = () => {
   const dispatch = useDispatch();
   const cartItems = useSelector(selectCartItems);
   const totalAmount = useSelector(selectCartTotalAmount);
   const totalItems = useSelector(selectCartTotalItems);
-
+const navigation = useNavigation();
   const cartItemsArray = Object.values(cartItems);
 
   const handleIncrement = (itemId: string) => {
@@ -44,26 +48,63 @@ const CartScreen: React.FC = () => {
     dispatch(removeItem(itemId));
   };
 
-  const handleCheckout = () => {
-    Alert.alert(
-      'Order Placed!',
-      `Your order of ${totalItems} items for ${formatINR(totalAmount)} has been placed successfully!`,
-      [
-        {
-          text: 'OK',
-          onPress: () => dispatch(clearCart()),
+const handleCheckout = () => {
+  const deliveryFee = 5000;            // paise
+  const gst = Math.round(totalAmount * 0.18);
+  const finalTotal = totalAmount + deliveryFee + gst;
+
+  // Build order payload
+  const itemsForOrder = cartItemsArray.map(({ menuItem, quantity }) => ({
+    id: menuItem.id,
+    name: menuItem.name,
+    price: menuItem.price,
+    image: menuItem.image,
+    quantity,
+    lineTotal: menuItem.price * quantity,
+  }));
+
+  Alert.alert(
+    'Order Placed!',
+    `Your order of ${totalItems} items for ${formatINR(finalTotal)} has been placed successfully!`,
+    [
+      {
+        text: 'OK',
+        onPress: () => {
+          // 1) save order
+          dispatch(addOrderFromCart({
+            items: itemsForOrder,
+            subtotal: totalAmount,
+            deliveryFee,
+            tax: gst,
+            total: finalTotal,
+          }));
+          // 2) clear cart
+          dispatch(clearCart());
+          // 3) go to Orders tab
+          //   change 'Orders' to whatever your tab screen name is
+          //   e.g. navigation.navigate('Orders' as never);
+          // @ts-expect-error: generic typing for simplicity
+          navigation.navigate('Serving');
         },
-      ]
-    );
-  };
+      },
+    ],
+  );
+};
 
   if (cartItemsArray.length === 0) {
     return (
+      <>
+      <View style={styles.container}>
+
+       <Header />
       <View style={styles.emptyContainer}>
+     
         <MaterialCommunityIcons name="cart-outline" size={80} color={colors.textSecondary} />
         <Text style={styles.emptyTitle}>Your cart is empty</Text>
         <Text style={styles.emptySubtitle}>Add some delicious items from the menu</Text>
       </View>
+            </View>
+      </>
     );
   }
 
@@ -73,6 +114,7 @@ const CartScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <Header />
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {cartItemsArray.map(({ menuItem, quantity }) => (
           <View key={menuItem.id} style={styles.cartItem}>
@@ -142,7 +184,7 @@ const CartScreen: React.FC = () => {
 
         <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
           <Text style={styles.checkoutButtonText}>
-            Proceed to Checkout • {formatINR(finalTotal)}
+            Continue {formatINR(finalTotal)}
           </Text>
         </TouchableOpacity>
       </View>

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +18,7 @@ import { RootState, AppDispatch } from '../store';
 import RatingStars from '../components/RatingStars';
 import Tag from '../components/Tag';
 import MenuItemCard from '../components/MenuItemCard';
+import Header from '../components/Header';
 
 const HomeScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -54,63 +56,71 @@ const HomeScreen: React.FC = () => {
     .slice(0, 3);
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Restaurant Header */}
-      <View style={styles.restaurantHeader}>
-        <Image source={{ uri: restaurant.image }} style={styles.restaurantImage} />
-        <View style={styles.restaurantInfo}>
-          <Text style={styles.restaurantName}>{restaurant.name}</Text>
-          <Text style={styles.restaurantDescription}>{restaurant.description}</Text>
+    <>
 
-          <View style={styles.restaurantMeta}>
-            <View style={styles.ratingContainer}>
-              <RatingStars rating={restaurant.rating} size={16} />
-              <Text style={styles.ratingText}>({restaurant.rating})</Text>
+      <View style={styles.container}>
+    <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    
+        <Header />
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+
+          <View style={styles.restaurantHeader}>
+            <Image source={{ uri: restaurant.image }} style={styles.restaurantImage} />
+            <View style={styles.restaurantInfo}>
+              <Text style={styles.restaurantName}>{restaurant.name}</Text>
+              <Text style={styles.restaurantDescription}>{restaurant.description}</Text>
+
+              <View style={styles.restaurantMeta}>
+                <View style={styles.ratingContainer}>
+                  <RatingStars rating={restaurant.rating} size={16} />
+                  <Text style={styles.ratingText}>({restaurant.rating})</Text>
+                </View>
+                <Text style={styles.deliveryTime}>• {restaurant.deliveryTime}</Text>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.cuisinesContainer}
+              >
+                {restaurant.cuisines.map((cuisine, index) => (
+                  <View key={index} style={styles.cuisineTag}>
+                    <Tag text={cuisine} variant="primary" />
+                  </View>
+                ))}
+              </ScrollView>
             </View>
-            <Text style={styles.deliveryTime}>• {restaurant.deliveryTime}</Text>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.cuisinesContainer}
-          >
-            {restaurant.cuisines.map((cuisine, index) => (
-              <View key={index} style={styles.cuisineTag}>
-                <Tag text={cuisine} variant="primary" />
-              </View>
+          {/* Recommended Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Recommended for You</Text>
+              <TouchableOpacity onPress={handleViewFullMenu}>
+                <Text style={styles.viewAllButton}>View Full Menu</Text>
+              </TouchableOpacity>
+            </View>
+
+            {recommendedItems.map(item => (
+              <MenuItemCard key={item.id} item={item} />
             ))}
-          </ScrollView>
-        </View>
-      </View>
+          </View>
 
-      {/* Recommended Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recommended for You</Text>
-          <TouchableOpacity onPress={handleViewFullMenu}>
-            <Text style={styles.viewAllButton}>View Full Menu</Text>
-          </TouchableOpacity>
-        </View>
-
-        {recommendedItems.map(item => (
-          <MenuItemCard key={item.id} item={item} />
-        ))}
+          {/* View Full Menu Button */}
+          <View style={styles.fullMenuButtonContainer}>
+            <TouchableOpacity style={styles.fullMenuButton} onPress={handleViewFullMenu}>
+              <Text style={styles.fullMenuButtonText}>View Full Menu</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </View>
-
-      {/* View Full Menu Button */}
-      <View style={styles.fullMenuButtonContainer}>
-        <TouchableOpacity style={styles.fullMenuButton} onPress={handleViewFullMenu}>
-          <Text style={styles.fullMenuButtonText}>View Full Menu</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+
     backgroundColor: colors.background,
   },
   loadingContainer: {

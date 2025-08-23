@@ -1,13 +1,13 @@
 export const colors = {
-  primary: '#D4A100',
+  primary: '#f28c27',
   primaryDark: '#A77E00',
 
   // Dark theme colors
-  background: '#0B0B0B',
-  surface: '#141414',
-  card: '#242424',
-  text: '#F3F3F3',
-  textSecondary: '#B9B9B9',
+  background: '#fff',
+  surface: '#fff',
+  card: '#ffffffff',
+  text: '#2c2c2cff',
+  textSecondary: '#181717ff',
 
   // Status colors
   success: '#4CAF50',
