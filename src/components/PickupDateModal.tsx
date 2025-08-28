@@ -5,6 +5,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiPost } from '../helper/axios';
+
 
 const { height } = Dimensions.get('window');
 
@@ -64,16 +67,65 @@ const PickupDateModal: React.FC<PickupDateModalProps> = ({
     toggleDropdown();
   };
 
-  const handleSave = (): void => {
-    if (!selectedEventType) {
-      Alert.alert('Error', 'Please select an event type');
-      return;
-    }
-    onSave({ date: selectedDate, time: selectedTime, eventType: selectedEventType });
+const handleSave = async (): Promise<void> => {
+  if (!selectedEventType) {
+    Alert.alert('Error', 'Please select an event type');
+    return;
+  }
+
+  try {
+    // Get packageType from AsyncStorage
+    const packageType = await AsyncStorage.getItem('prasadType');
+    console.log('packageType', packageType);
+
+    // Format date as dd/mm/yyyy
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0'); // Month is 0-based
+    const year = selectedDate.getFullYear();
+    const formattedDate = `${month}/${day}/${year}`;
+
+    // Format time as hh:mm AM/PM
+    const formattedTime = selectedTime.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    // Build request body
+    const body = {
+      pickupDate: formattedDate,
+      pickupTime: formattedTime,
+      eventName: selectedEventType,
+    };
+
+    console.log('body', body);
+
+    // Construct URL with packageType as query parameter
+    const url = `/${packageType}/date`;
+    console.log('url', url);
+
+    // Send to backend
+    const response = await ApiPost(url, body);
+    console.log('response', response);
+
+    // Optionally save in AsyncStorage (for future screens)
+    await AsyncStorage.setItem('pickupDetails', JSON.stringify(body));
+
     Alert.alert('Success', 'Pickup date saved successfully!', [
-      { text: 'OK', onPress: () => { setSelectedEventType(''); onClose(); } },
+      {
+        text: 'OK',
+        onPress: () => {
+          setSelectedEventType('');
+          onClose();
+        },
+      },
     ]);
-  };
+  } catch (error: any) {
+    console.error('Pickup date save error:', error);
+    Alert.alert('Error', error?.response?.data?.message || 'Failed to save pickup date.');
+  }
+};
+
 
   const dropdownHeight = dropdownAnimation.interpolate({
     inputRange: [0, 1],

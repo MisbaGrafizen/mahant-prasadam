@@ -18,27 +18,45 @@ import { RootState } from '../store';
 import RatingStars from './RatingStars';
 import Tag from './Tag';
 
+type ServingItem = {
+  _id?: string;
+  id?: string;
+  name: string;
+  price: number;
+  image?: string;
+  description?: string;
+  isVeg?: boolean;
+};
+
 interface ServingCardProps {
-  item: MenuItem;
+  item: ServingItem;
+  quantity: number;          // 👈 controlled by parent
+  onIncrease: () => void;    // 👈 from parent
+  onDecrease: () => void;    // 👈 from parent
 }
 
-const ServingCard: React.FC<ServingCardProps> = ({ item }) => {
+const ServingCard: React.FC<ServingCardProps> = ({ item, quantity, onIncrease, onDecrease }) => {
   const dispatch = useDispatch();
-  const quantity = useSelector((state: RootState) =>
-    selectCartItemQuantity(state, item.id)
-  );
+    const qty = Number(quantity || 0);
 
-  const handleAddToCart = () => {
-    dispatch(addItem(item));
-  };
 
-  const handleIncrement = () => {
-    dispatch(incrementItem(item.id));
-  };
+  // const itemId = item._id || item.id;
 
-  const handleDecrement = () => {
-    dispatch(decrementItem(item.id));
-  };
+  // const quantity = useSelector((state: RootState) =>
+  //   selectCartItemQuantity(state, itemId)
+  // );
+
+  // const handleAddToCart = () => {
+  //   dispatch(addItem({ ...item, id: itemId }));  
+  // };
+
+  // const handleIncrement = () => {
+  //   dispatch(incrementItem(itemId));
+  // };
+
+  // const handleDecrement = () => {
+  //   dispatch(decrementItem(itemId));
+  // };
 
   return (
     <View style={styles.container}>
@@ -77,18 +95,18 @@ const ServingCard: React.FC<ServingCardProps> = ({ item }) => {
           <Text style={styles.price}>{formatINR(item.price)}</Text>
 
           {quantity === 0 ? (
-            <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
+            <TouchableOpacity style={styles.addButton} onPress={onIncrease}>
               <Text style={styles.addButtonText}>ADD</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.quantityContainer}>
-              <TouchableOpacity style={styles.quantityButton} onPress={handleDecrement}>
+              <TouchableOpacity style={styles.quantityButton} onPress={onDecrease}>
                 <MaterialCommunityIcons name="minus" size={16} color="#036197" />
               </TouchableOpacity>
 
-              <Text style={styles.quantity}>{quantity}</Text>
+              <Text style={styles.quantity}>{qty}</Text>
 
-              <TouchableOpacity style={styles.quantityButton} onPress={handleIncrement}>
+              <TouchableOpacity style={styles.quantityButton} onPress={onIncrease}>
                 <MaterialCommunityIcons name="plus" size={16} color="#036197" />
               </TouchableOpacity>
             </View>

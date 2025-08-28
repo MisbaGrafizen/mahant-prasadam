@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useDispatch, useSelector } from 'react-redux';
 
 import { addOrderFromCart } from '../store/slices/ordersSlice';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { formatINR } from '../utils/currency';
 import {
@@ -27,6 +27,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { RootState } from '../store';
 import Header from '../components/Header';
+import { ApiGet, ApiPut } from '../helper/axios';
 
 const CartScreen: React.FC = () => {
   const dispatch = useDispatch();
@@ -48,48 +49,89 @@ const navigation = useNavigation();
     dispatch(removeItem(itemId));
   };
 
-const handleCheckout = () => {
-  const deliveryFee = 5000;            // paise
-  const gst = Math.round(totalAmount * 0.18);
-  const finalTotal = totalAmount + deliveryFee + gst;
+  useEffect(() => {
+  const fetchCart = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      const prasadType = await AsyncStorage.getItem('prasadType');
+      if (!userId) return;
 
-  // Build order payload
-  const itemsForOrder = cartItemsArray.map(({ menuItem, quantity }) => ({
-    id: menuItem.id,
-    name: menuItem.name,
-    price: menuItem.price,
-    image: menuItem.image,
-    quantity,
-    lineTotal: menuItem.price * quantity,
-  }));
+      const res = await ApiGet(`/${prasadType}/cart/${userId}`);
 
-  Alert.alert(
-    'Order Placed!',
-    `Your order of ${totalItems} items for ${formatINR(finalTotal)} has been placed successfully!`,
-    [
-      {
-        text: 'OK',
-        onPress: () => {
-          // 1) save order
-          dispatch(addOrderFromCart({
-            items: itemsForOrder,
-            subtotal: totalAmount,
-            deliveryFee,
-            tax: gst,
-            total: finalTotal,
-          }));
-          // 2) clear cart
-          dispatch(clearCart());
-          // 3) go to Orders tab
-          //   change 'Orders' to whatever your tab screen name is
-          //   e.g. navigation.navigate('Orders' as never);
-          // @ts-expect-error: generic typing for simplicity
-          navigation.navigate('Serving');
+      console.log('res', res)
+      const serverCartItems = res.data?.items || [];
+      const cartId = res.data?._id;
+      console.log('cartId', cartId)
+
+      if (cartId) {
+        await AsyncStorage.setItem('cartId', cartId);
+      }
+
+      const formattedCart = serverCartItems.map(item => ({
+        menuItem: {
+          id: item.foodItem._id,
+          name: item.foodItem.name,
+          price: Number(item.foodItem.price),
+          image: item.foodItem.image || '',
         },
-      },
-    ],
-  );
+        quantity: Number(item.quantity),
+      }));
+
+      // Optionally update Redux here if needed
+      // dispatch(loadCart(formattedCart));
+
+    } catch (err) {
+      console.error('Failed to load cart:', err);
+    }
+  };
+
+  fetchCart();
+}, []);
+
+const handleCheckout = async () => {
+  try {
+    const prasadType = await AsyncStorage.getItem('prasadType');
+    const userId = await AsyncStorage.getItem('userId');
+    const cartId = await AsyncStorage.getItem('cartId');
+
+    if (!userId || !prasadType || !cartId) {
+      Alert.alert('Error', 'Missing cart or user information.');
+      return;
+    }
+
+    console.log('cartItemsArray', cartItemsArray)
+    const items = cartItemsArray.map(({ menuItem, quantity }) => ({
+      foodItem: menuItem?._id,
+      quantity: quantity.toString(),
+    }));
+
+    const payload = { items, userId };
+
+    console.log('Updating cart:', payload);
+
+    // PATCH request to update the cart with cartId in the URL
+    const res = await ApiPut(`/${prasadType}/cart/update`, payload);
+
+    console.log('res-update', res)
+
+    if (res.cart) {
+      // Navigate based on prasadType
+      if (prasadType === 'self-service') {
+        // @ts-expect-error
+        navigation.navigate('Serving');
+      } else {
+        // @ts-expect-error
+        navigation.navigate('Location');
+      }
+    } else {
+      Alert.alert('Error', 'Failed to update cart.');
+    }
+  } catch (err) {
+    console.error('Cart update failed:', err);
+    Alert.alert('Error', 'Something went wrong while updating the cart.');
+  }
 };
+
 
   if (cartItemsArray.length === 0) {
     return (
@@ -117,12 +159,12 @@ const handleCheckout = () => {
       <Header />
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {cartItemsArray.map(({ menuItem, quantity }) => (
-          <View key={menuItem.id} style={styles.cartItem}>
+          <View key={menuItem._id} style={styles.cartItem}>
             <Image source={{ uri: menuItem.image }} style={styles.itemImage} />
 
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{menuItem.name}</Text>
-              <Text style={styles.itemPrice}>{formatINR(menuItem.price)}</Text>
+              <Text style={styles.itemPrice}>₹{menuItem.price}</Text>
 
               <View style={styles.quantityContainer}>
                 <TouchableOpacity
@@ -145,7 +187,7 @@ const handleCheckout = () => {
 
             <View style={styles.itemActions}>
               <Text style={styles.itemTotal}>
-                {formatINR(menuItem.price * quantity)}
+                ₹{menuItem.price * quantity}
               </Text>
               <TouchableOpacity
                 style={styles.removeButton}
@@ -160,31 +202,31 @@ const handleCheckout = () => {
 
       {/* Bill Summary */}
       <View style={styles.billContainer}>
-        <Text style={styles.billTitle}>Bill Summary</Text>
+        {/* <Text style={styles.billTitle}>Bill Summary</Text> */}
 
-        <View style={styles.billRow}>
+        {/* <View style={styles.billRow}>
           <Text style={styles.billLabel}>Item Total ({totalItems} items)</Text>
           <Text style={styles.billValue}>{formatINR(totalAmount)}</Text>
-        </View>
+        </View> */}
 
-        <View style={styles.billRow}>
+        {/* <View style={styles.billRow}>
           <Text style={styles.billLabel}>Delivery Fee</Text>
           <Text style={styles.billValue}>{formatINR(deliveryFee)}</Text>
-        </View>
-
+        </View> */}
+{/* 
         <View style={styles.billRow}>
           <Text style={styles.billLabel}>GST (18%)</Text>
           <Text style={styles.billValue}>{formatINR(gst)}</Text>
-        </View>
+        </View> */}
 
-        <View style={[styles.billRow, styles.totalRow]}>
+        {/* <View style={[styles.billRow, styles.totalRow]}>
           <Text style={styles.totalLabel}>Total Amount</Text>
           <Text style={styles.totalValue}>{formatINR(finalTotal)}</Text>
-        </View>
+        </View> */}
 
         <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
           <Text style={styles.checkoutButtonText}>
-            Continue {formatINR(finalTotal)}
+            Continue ₹{totalAmount}
           </Text>
         </TouchableOpacity>
       </View>

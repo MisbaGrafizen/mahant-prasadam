@@ -18,6 +18,9 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import loginbg from '../../src/assets/images/loginbackground.png'
+import { ApiPost } from '../helper/axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,38 +35,50 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [usernameFocused, setUsernameFocused] = useState<boolean>(false);
   const [passwordFocused, setPasswordFocused] = useState<boolean>(false);
-
-const handleLogin = (): void => {
-  if (!username.trim()) {
-    Alert.alert('Error', 'Please enter your username');
+  const [loading, setLoading] = useState<boolean>(false);
+// inside handleLogin in LoginScreen.tsx
+const handleLogin = async () => {
+  if (!username.trim() || !password.trim()) {
+    Alert.alert('Error', 'Please enter username and password');
     return;
   }
-  if (!password.trim()) {
-    Alert.alert('Error', 'Please enter your password');
-    return;
+  console.log('username', username)
+  console.log('password', password)
+
+  try {
+    setLoading(true);
+    if (__DEV__) console.log('LOGIN ⇢ submitting', { username });
+
+    const data = await ApiPost(
+      '/user/login',
+      { name: username, password }
+    );
+
+    console.log('data', data)
+
+    await AsyncStorage.setItem('token', data?.data?.token || '');
+await AsyncStorage.setItem('userId', data?.data?.user?._id || '');
+await AsyncStorage.setItem('user', JSON.stringify(data?.data?.user || {}));
+
+    if (__DEV__) console.log('LOGIN ⇠ success', { hasToken: !!data?.data?.token, user: data?.data?.user, userId: data?.data?.user?._id });
+
+    // ...save token / user...
+    // navigate:
+    navigation.reset({ index: 0, routes: [{ name: 'Parasad' }] });
+  } catch (err: any) {
+    if (__DEV__) {
+      console.log('LOGIN ✗ error', {
+        status: err?.response?.status,
+        url: err?.config?.url,
+        data: err?.response?.data,
+        msg: err?.message,
+      });
+    }
+    Alert.alert('Login Failed', err?.response?.data?.message || err?.message || 'Try again.');
+  } finally {
+    setLoading(false);
   }
-
-  // Simulate login process
-  Alert.alert(
-    'Login Successful',
-    `Welcome ${username}!`,
-    [
-      {
-        text: 'Continue',
-        onPress: () => {
-          console.log('Login successful:', { username, rememberMe });
-
-        navigation.reset({
-  index: 0,
-  routes: [{ name: 'Parasad' }],
-});
-        
-        }
-      }
-    ]
-  );
 };
-
 
   const togglePasswordVisibility = (): void => {
     setShowPassword(!showPassword);
@@ -191,7 +206,7 @@ const handleLogin = (): void => {
                     onPress={handleLogin}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.loginButtonText}>LOGIN</Text>
+                    <Text style={styles.loginButtonText}>{loading ? "Logining..." : "Login"}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

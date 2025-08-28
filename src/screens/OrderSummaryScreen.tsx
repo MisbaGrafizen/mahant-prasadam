@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Image, StatusBar, ScrollView, Dimensions } from "react-native"
+import { useEffect, useState } from "react"
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Image, StatusBar, ScrollView, Dimensions, Alert } from "react-native"
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Icon from "react-native-vector-icons/MaterialIcons"
 import Header from "../components/Header"
@@ -19,6 +19,8 @@ import {
 } from '../store/slices/cartSlice';
 import PickupDateModal from "../components/PickupDateModal";
 import NormalDateModal from "../components/OthersModal/NormalDateModal";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ApiGet } from "../helper/axios";
 
 const { width } = Dimensions.get("window")
 
@@ -36,29 +38,26 @@ interface ServingItem {
     quantity: number
 }
 
-const OrderSummaryScreen: React.FC = () => {
-    const [selectedDate, setSelectedDate] = useState<Date>(new Date(2025, 7, 27)) // 27/08/2025
+interface Props {
+  navigation: any;
+}
+
+const OrderSummaryScreen: React.FC<Props> = ({ navigation }) => {
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date()) // 27/08/2025
 
 
-  const [showDateModal, setShowDateModal] = useState<boolean>(false);
+    const [showDateModal, setShowDateModal] = useState<boolean>(false);
+
+    const [orderId, setOrderId] = useState<string | null>(null)
+    const [orderTotal, setOrderTotal] = useState<number>(0)
+    const [orderFoodTotal, setOrderFoodTotal] = useState<number>(0)
+    const [orderServingTotal, setOrderServingTotal] = useState<number>(0)
+    const [submitting, setSubmitting] = useState<boolean>(false)
 
 
-    const [orderItems, setOrderItems] = useState<Item[]>([
-        {
-            id: "1",
-            name: "Biscuit Badam Pista 250gm",
-            price: 60,
-            quantity: 2,
-            image: "https://via.placeholder.com/80", // dummy image
-        },
-        {
-            id: "2",
-            name: "Samosa (2 pcs)",
-            price: 30,
-            quantity: 3,
-            image: "https://via.placeholder.com/80",
-        },
-    ])
+    const [orderItems, setOrderItems] = useState<Item[]>([])
+    const [servingItems, setServingItems] = useState<Item[]>([])
+    const [loading, setLoading] = useState<boolean>(true)
     const formatDate = (date: Date): string => {
         const day = date.getDate().toString().padStart(2, "0")
         const month = (date.getMonth() + 1).toString().padStart(2, "0")
@@ -66,246 +65,326 @@ const OrderSummaryScreen: React.FC = () => {
         return `${day}/${month}/${year}`
     }
 
-    const updateOrderItemQuantity = (itemId: string, change: number): void => {
-        setOrderItems((prev) =>
-            prev
-                .map((item) => (item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item))
-                .filter((item) => item.quantity > 0),
-        )
+    const persistServing = async (items: Item[]) => {
+        try {
+            await AsyncStorage.setItem("selectedServingItems", JSON.stringify(items))
+        } catch (e) {
+            console.error("Failed to persist selectedServingItems", e)
+        }
     }
 
-    const updateServingItemQuantity = (itemId: string, change: number): void => {
-        setServingItems((prev) =>
-            prev
-                .map((item) => (item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item))
-                .filter((item) => item.quantity > 0),
-        )
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const [userId, prasadType] = await Promise.all([
+                    AsyncStorage.getItem("userId"),
+                    AsyncStorage.getItem("prasadType"),
+                ])
+
+                if (!userId || !prasadType) {
+                    Alert.alert("Missing info", "User or prasad type not found.")
+                    setLoading(false)
+                    return
+                }
+
+                // 1) Fetch CART by user
+                // Expected response shape example:
+                // { cart: { items: [{ foodItem: {_id,name,price,image}, quantity }] } }
+                const cartRes = await ApiGet(`/${prasadType}/cart/${userId}`)
+                const serverCartItems = cartRes?.data?.items ?? []
+
+                const mappedOrderItems: Item[] = serverCartItems.map((row: any) => ({
+                    id: String(row?.foodItem?._id ?? row?.foodItem?.id ?? ""),
+                    name: String(row?.foodItem?.name ?? "Item"),
+                    price: Number(row?.foodItem?.price ?? 0),
+                    image: row?.foodItem?.image ?? undefined,
+                    quantity: Number(row?.quantity ?? 0),
+                }))
+                setOrderItems(mappedOrderItems)
+
+                const storedServing = await AsyncStorage.getItem("selectedServingItems")
+                console.log('storedServing', storedServing)
+                if (storedServing) {
+                    const parsed = JSON.parse(storedServing) as any[]
+                    const mappedServing: Item[] = (parsed || []).map((it: any, idx: number) => ({
+                        id: String(it._id ?? it.id ?? idx),
+                        name: String(it.name ?? "Serving item"),
+                        price: Number(it.price ?? 0),
+                        quantity: Number(it.quantity ?? 0),
+                        image: it.image ?? undefined,
+                    }))
+                    setServingItems(mappedServing)
+            } else {
+                setServingItems([])
+            }
+        } catch (err) {
+            console.error("Failed to load order summary:", err)
+            Alert.alert("Error", "Unable to load your order summary.")
+        } finally {
+            setLoading(false)
+        }
     }
 
-    const handleDatePress = (): void => {
-setShowDateModal(true);
-    }
+    loadData()
+  }, [])
 
-    const handlePickupLocation = (): void => {
-        console.log("Navigate to pickup location")
-    }
+const updateOrderItemQuantity = (itemId: string, change: number): void => {
+    setOrderItems((prev) =>
+        prev
+            .map((item) => (item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item))
+            .filter((item) => item.quantity > 0),
+    )
+}
 
-    const handlePlaceOrder = (): void => {
-        console.log("Place order")
-    }
+const updateServingItemQuantity = (itemId: string, change: number): void => {
+    setServingItems(prev => {
+        const next = prev
+            .map(item =>
+                item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item
+            )
+            .filter(item => item.quantity > 0)
+        persistServing(next) // save latest serving selection
+        return next
+    })
+}
 
+const handleDatePress = (): void => {
+    setShowDateModal(true);
+}
 
-  const handleDateSave = (data: any): void => {
+const handlePickupLocation = (): void => {
+    console.log("Navigate to pickup location")
+}
+
+const handlePlaceOrder = (): void => {
+    console.log("Place order")
+}
+
+const itemCount = orderItems.reduce((sum, i) => sum + i.quantity, 0)
+const servingCount = servingItems.reduce((sum, i) => sum + i.quantity, 0)
+const totalItems = itemCount + servingCount
+
+const handleDateSave = (data: any): void => {
     setSelectedDate(data.date);
     setShowDateModal(false);
-  };
+};
 
-    const renderQuantityControls = (quantity: number, onDecrease: () => void, onIncrease: () => void) => (
-        <View style={styles.quantityContainer}>
-            <TouchableOpacity style={styles.quantityButton} onPress={onDecrease} activeOpacity={0.7}>
-                <Text style={styles.quantityButtonText}>-</Text>
-            </TouchableOpacity>
+const renderQuantityControls = (quantity: number, onDecrease: () => void, onIncrease: () => void) => (
+    <View style={styles.quantityContainer}>
+        <TouchableOpacity style={styles.quantityButton} onPress={onDecrease} activeOpacity={0.7}>
+            <Text style={styles.quantityButtonText}>-</Text>
+        </TouchableOpacity>
 
-            <View style={styles.quantityDisplay}>
-                <Text style={styles.quantityText}>QTY: {quantity}</Text>
-            </View>
-
-            <TouchableOpacity style={[styles.quantityButton, styles.increaseButton]} onPress={onIncrease} activeOpacity={0.7}>
-                <Text style={[styles.quantityButtonText, styles.increaseButtonText]}>+</Text>
-            </TouchableOpacity>
+        <View style={styles.quantityDisplay}>
+            <Text style={styles.quantityText}>QTY: {quantity}</Text>
         </View>
-    )
+
+        <TouchableOpacity style={[styles.quantityButton, styles.increaseButton]} onPress={onIncrease} activeOpacity={0.7}>
+            <Text style={[styles.quantityButtonText, styles.increaseButtonText]}>+</Text>
+        </TouchableOpacity>
+    </View>
+)
+
+// const updateItemQuantity = (
+//     items: Item[],
+//     setItems: React.Dispatch<React.SetStateAction<Item[]>>,
+//     itemId: string,
+//     change: number
+// ) => {
+//     setItems((prev) =>
+//         prev
+//             .map((item) =>
+//                 item.id === itemId
+//                     ? { ...item, quantity: Math.max(0, item.quantity + change) }
+//                     : item
+//             )
+//             .filter((item) => item.quantity > 0)
+//     )
+// }
+
+// Calculate totals
+
+const updateItemQuantity = (
+    items: Item[],
+    setItems: React.Dispatch<React.SetStateAction<Item[]>>,
+    itemId: string,
+    change: number
+) => {
+    setItems(prev => {
+        const next = prev
+            .map(item =>
+                item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item
+            )
+            .filter(item => item.quantity > 0)
+        return next
+    })
+}
+const itemTotal = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+const servingTotal = servingItems.reduce(
+    (sum, i) => sum + i.price * i.quantity,
+    0
+)
+const subTotal = itemTotal + servingTotal
+const deliveryFee = 20
+const gst = Math.round(subTotal * 0.18)
+const grandTotal = subTotal + deliveryFee + gst
 
 
-    const [servingItems, setServingItems] = useState<Item[]>([
-        { id: "1", name: "Disposable Bowl", price: 4, quantity: 2 },
-        { id: "2", name: "Disposable Plate", price: 6, quantity: 1 },
-    ])
+return (
+    <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
-    const updateItemQuantity = (
-        items: Item[],
-        setItems: React.Dispatch<React.SetStateAction<Item[]>>,
-        itemId: string,
-        change: number
-    ) => {
-        setItems((prev) =>
-            prev
-                .map((item) =>
-                    item.id === itemId
-                        ? { ...item, quantity: Math.max(0, item.quantity + change) }
-                        : item
-                )
-                .filter((item) => item.quantity > 0)
-        )
-    }
-
-    // Calculate totals
-    const itemTotal = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
-    const servingTotal = servingItems.reduce(
-        (sum, i) => sum + i.price * i.quantity,
-        0
-    )
-    const subTotal = itemTotal + servingTotal
-    const deliveryFee = 20
-    const gst = Math.round(subTotal * 0.18)
-    const grandTotal = subTotal + deliveryFee + gst
+        <View style={{ marginTop: "-14%" }}>
+            <Header />
+        </View>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* User Profile Section */}
 
 
-    return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+            {/* Header Buttons */}
+            <View style={styles.headerButtons}>
+                <TouchableOpacity style={styles.orderSummaryHeaderButton} activeOpacity={0.8}>
+                    <Text style={styles.orderSummaryHeaderText}>Item order summary</Text>
+                </TouchableOpacity>
 
-            <View style={{ marginTop: "-14%" }}>
-                <Header />
-            </View>
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* User Profile Section */}
-
-
-                {/* Header Buttons */}
-                <View style={styles.headerButtons}>
-                    <TouchableOpacity style={styles.orderSummaryHeaderButton} activeOpacity={0.8}>
-                        <Text style={styles.orderSummaryHeaderText}>Item order summary</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.dateButton} onPress={handleDatePress} activeOpacity={0.8}>
-                        <Icon name="event" size={20} color="#FFFFFF" style={styles.calendarIcon} />
-                        <Text style={styles.dateButtonText}>{formatDate(selectedDate)}</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Order Items */}
-                <View style={styles.orderItemsContainer}>
-                    {orderItems.map((item) => (
-                        <View key={item.id} style={styles.cartItem}>
-                            <Image source={{ uri: item.image }} style={styles.itemImage} />
-                            <View style={styles.itemInfo}>
-                                <Text style={styles.itemName}>{item.name}</Text>
-                                <Text style={styles.itemPrice}>{formatINR(item.price)}</Text>
-                                <View style={styles.quantityContainer}>
-                                    <TouchableOpacity
-                                        style={styles.quantityButton}
-                                        onPress={() =>
-                                            updateItemQuantity(orderItems, setOrderItems, item.id, -1)
-                                        }
-                                    >
-                                        <MaterialCommunityIcons
-                                            name="minus"
-                                            size={16}
-                                            color={colors.primary}
-                                        />
-                                    </TouchableOpacity>
-                                    <Text style={styles.quantity}>{item.quantity}</Text>
-                                    <TouchableOpacity
-                                        style={styles.quantityButton}
-                                        onPress={() =>
-                                            updateItemQuantity(orderItems, setOrderItems, item.id, 1)
-                                        }
-                                    >
-                                        <MaterialCommunityIcons
-                                            name="plus"
-                                            size={16}
-                                            color={colors.primary}
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            <Text style={styles.itemTotal}>
-                                {formatINR(item.price * item.quantity)}
-                            </Text>
-                        </View>
-                    ))}
-                </View>
-
-                {/* Serving Method Section */}
-                <View style={styles.servingMethodHeader}>
-                    <Text style={styles.servingMethodHeaderText}>Serving method summary</Text>
-                </View>
-
-                <View style={styles.servingItemsContainer}>
-                    {servingItems.map((item) => (
-                        <View key={item.id} style={styles.cartItem}>
-                            <Image source={{ uri: item.image }} style={styles.itemImage} />
-                            <View style={styles.itemInfo}>
-                                <Text style={styles.itemName}>{item.name}</Text>
-                                <Text style={styles.itemPrice}>{formatINR(item.price)}</Text>
-                                <View style={styles.quantityContainer}>
-                                    <TouchableOpacity
-                                        style={styles.quantityButton}
-                                        onPress={() =>
-                                            updateItemQuantity(orderItems, setOrderItems, item.id, -1)
-                                        }
-                                    >
-                                        <MaterialCommunityIcons
-                                            name="minus"
-                                            size={16}
-                                            color={colors.primary}
-                                        />
-                                    </TouchableOpacity>
-                                    <Text style={styles.quantity}>{item.quantity}</Text>
-                                    <TouchableOpacity
-                                        style={styles.quantityButton}
-                                        onPress={() =>
-                                            updateItemQuantity(orderItems, setOrderItems, item.id, 1)
-                                        }
-                                    >
-                                        <MaterialCommunityIcons
-                                            name="plus"
-                                            size={16}
-                                            color={colors.primary}
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            <Text style={styles.itemTotal}>
-                                {formatINR(item.price * item.quantity)}
-                            </Text>
-                        </View>
-                    ))}
-                </View>
-
-
-
-                {/* Bottom Navigation */}
-
-            </ScrollView>
-
-            <View style={styles.billContainer}>
-                <Text style={styles.billTitle}>Bill Summary</Text>
-
-                <View style={styles.billRow}>
-                    <Text style={styles.billLabel}>Item Total 23 (items)</Text>
-                    <Text style={styles.billValue}>2424</Text>
-                </View>
-
-                <View style={styles.billRow}>
-                    <Text style={styles.billLabel}>Delivery Fee</Text>
-                    <Text style={styles.billValue}>23</Text>
-                </View>
-
-                <View style={styles.billRow}>
-                    <Text style={styles.billLabel}>GST (18%)</Text>
-                    <Text style={styles.billValue}>23</Text>
-                </View>
-
-                <View style={[styles.billRow, styles.totalRow]}>
-                    <Text style={styles.totalLabel}>Total Amount</Text>
-                    <Text style={styles.totalValue}>72329</Text>
-                </View>
-
-                <TouchableOpacity style={styles.checkoutButton}>
-                    <Text style={styles.checkoutButtonText}>
-                        Confirm Order
-                    </Text>
+                <TouchableOpacity style={styles.dateButton} onPress={handleDatePress} activeOpacity={0.8}>
+                    <Icon name="event" size={20} color="#FFFFFF" style={styles.calendarIcon} />
+                    <Text style={styles.dateButtonText}>{formatDate(selectedDate)}</Text>
                 </TouchableOpacity>
             </View>
-                  <NormalDateModal
-        visible={showDateModal}
-        onClose={() => setShowDateModal(false)}
-        onSave={handleDateSave}
-      />
-        </SafeAreaView>
-    )
+
+            {/* Order Items */}
+            <View style={styles.orderItemsContainer}>
+                {orderItems.map((item) => (
+                    <View key={item.id} style={styles.cartItem}>
+                        <Image source={{ uri: item.image }} style={styles.itemImage} />
+                        <View style={styles.itemInfo}>
+                            <Text style={styles.itemName}>{item.name}</Text>
+                            <Text style={styles.itemPrice}>₹{item.price}</Text>
+                            <View style={styles.quantityContainer}>
+                                <TouchableOpacity
+                                    style={styles.quantityButton}
+                                    onPress={() =>
+                                        updateItemQuantity(orderItems, setOrderItems, item.id, -1)
+                                    }
+                                >
+                                    <MaterialCommunityIcons
+                                        name="minus"
+                                        size={16}
+                                        color={colors.primary}
+                                    />
+                                </TouchableOpacity>
+                                <Text style={styles.quantity}>{item.quantity}</Text>
+                                <TouchableOpacity
+                                    style={styles.quantityButton}
+                                    onPress={() =>
+                                        updateItemQuantity(orderItems, setOrderItems, item.id, 1)
+                                    }
+                                >
+                                    <MaterialCommunityIcons
+                                        name="plus"
+                                        size={16}
+                                        color={colors.primary}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <Text style={styles.itemTotal}>
+                            ₹{item.price * item.quantity}
+                        </Text>
+                    </View>
+                ))}
+            </View>
+
+            {/* Serving Method Section */}
+            <View style={styles.servingMethodHeader}>
+                <Text style={styles.servingMethodHeaderText}>Serving method summary</Text>
+            </View>
+
+            <View style={styles.servingItemsContainer}>
+                {servingItems.map((item) => (
+                    <View key={item.id} style={styles.cartItem}>
+                        <Image source={{ uri: item.image }} style={styles.itemImage} />
+                        <View style={styles.itemInfo}>
+                            <Text style={styles.itemName}>{item.name}</Text>
+                            <Text style={styles.itemPrice}>₹{item.price}</Text>
+                            <View style={styles.quantityContainer}>
+                                <TouchableOpacity
+                                    style={styles.quantityButton}
+                                    onPress={() => updateServingItemQuantity(item.id, -1)}
+                                >
+                                    <MaterialCommunityIcons
+                                        name="minus"
+                                        size={16}
+                                        color={colors.primary}
+                                    />
+                                </TouchableOpacity>
+                                <Text style={styles.quantity}>{item.quantity}</Text>
+                                <TouchableOpacity
+                                    style={styles.quantityButton}
+                                    onPress={() => updateServingItemQuantity(item.id, 1)}
+                                >
+                                    <MaterialCommunityIcons
+                                        name="plus"
+                                        size={16}
+                                        color={colors.primary}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <Text style={styles.itemTotal}>
+                            ₹{item.price * item.quantity}
+                        </Text>
+                    </View>
+                ))}
+            </View>
+
+
+
+            {/* Bottom Navigation */}
+
+        </ScrollView>
+
+        <View style={styles.billContainer}>
+            <Text style={styles.billTitle}>Bill Summary</Text>
+
+            <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Total Items</Text>
+                <Text style={styles.billValue}>{totalItems}</Text>
+            </View>
+
+            {/* <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Delivery Fee</Text>
+                    <Text style={styles.billValue}>2</Text>
+                </View> */}
+
+            {/* <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>GST (18%)</Text>
+                    <Text style={styles.billValue}>23</Text>
+                </View> */}
+
+            <View style={[styles.billRow, styles.totalRow]}>
+                <Text style={styles.totalLabel}>Total Amount</Text>
+                <Text style={styles.totalValue}>₹{itemTotal}</Text>
+            </View>
+
+            <TouchableOpacity style={styles.checkoutButton}
+              onPress={() => {
+    // you can also pass order data to receipt screen
+    navigation.navigate("Orderrecipt")
+  }}>
+                <Text style={styles.checkoutButtonText}>
+                    Confirm Order
+                </Text>
+            </TouchableOpacity>
+        </View>
+        <NormalDateModal
+            visible={showDateModal}
+            onClose={() => setShowDateModal(false)}
+            onSave={handleDateSave}
+        />
+    </SafeAreaView>
+)
 }
 
 const styles = StyleSheet.create({

@@ -12,13 +12,15 @@ import { selectCartTotalItems } from '../store/slices/cartSlice';
 import MainHomeScreen from '../screens/MainHomeScreen';
 import ServingMethodScreen from '../screens/ServingMethodScreen';
 import CartScreen from '../screens/CartScreen';
-import OrdersScreen from '../screens/OrdersScreen';
+import OrdersScreen from '../screens/OrderListingScreen';
 import HomeScreen from '../screens/HomeScreen'; // using as Feedback placeholder
 import ProfileScreen from '../screens/ProfileScreen';
 import LoginScreen from '../screens/LoginScreen';
 import PickupLocationScreen from '../screens/PickupLocationScreen';
 import PrasadSelectionScreen from '../screens/PrasadSelectionScreen';
 import OrderSummaryScreen from '../screens/OrderSummaryScreen';
+import OrderReceiptScreen from '../screens/OrderReceiptScreen';
+import OrderDetailScreen from '../screens/OrderDetailScreen';
 
 // ---------- Home stack (keeps tab bar while pushing "Serving") ----------
 const HomeStack = createNativeStackNavigator();
@@ -29,6 +31,11 @@ function HomeStackNavigator() {
   <HomeStack.Screen name="Serving" component={ServingMethodScreen} />
   <HomeStack.Screen name="Location" component={PickupLocationScreen} />
   <HomeStack.Screen name="Ordersummary" component={OrderSummaryScreen} />
+  <HomeStack.Screen name="Orderrecipt" component={OrderReceiptScreen} />
+  <HomeStack.Screen name="OrderDetail" component={OrderDetailScreen} />
+
+  
+
 
 </HomeStack.Navigator>
   );

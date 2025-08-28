@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
-import packagingImage from '../assets/images/packaging.png'
+import packagingImage from '../assets/images/packaging.png';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,16 +27,21 @@ const PrasadSelectionScreen: React.FC<PrasadSelectionScreenProps> = ({ navigatio
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showModal, setShowModal] = useState<boolean>(true);
 
-const handleOptionSelect = (option: 'pre-packaged' | 'self-serving') => {
+const handleOptionSelect = async (option: 'pre-packaged' | 'self-serving') => {
   setSelectedOption(option);
 
-  if (option === 'self-serving') {
-    // go straight to Home tab
-    navigation.replace('MainTabs');
-  } else if (option === 'pre-packaged') {
-    // go to the full tab navigator (default tab will open)
-    navigation.replace('MainTabs');
+  const prasadValue = option === 'self-serving' ? 'self-service' : 'pre-packaging';
+
+  try {
+    await AsyncStorage.setItem('prasadType', prasadValue);
+    console.log('Saved prasad type:', prasadValue);
+  } catch (error) {
+    console.error('Failed to store prasad type:', error);
+    Alert.alert('Error', 'Could not save your selection. Please try again.');
+    return;
   }
+
+  navigation.replace('MainTabs');
 };
 
 

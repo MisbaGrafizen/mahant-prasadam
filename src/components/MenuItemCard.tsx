@@ -24,20 +24,23 @@ interface MenuItemCardProps {
 
 const MenuItemCard: React.FC<MenuItemCardProps> = ({ item }) => {
   const dispatch = useDispatch();
+
+    const itemId = item._id || item.id;
+
   const quantity = useSelector((state: RootState) =>
-    selectCartItemQuantity(state, item.id)
+    selectCartItemQuantity(state, itemId)
   );
 
   const handleAddToCart = () => {
-    dispatch(addItem(item));
+    dispatch(addItem({ ...item, id: itemId }));  
   };
 
   const handleIncrement = () => {
-    dispatch(incrementItem(item.id));
+    dispatch(incrementItem(itemId));
   };
 
   const handleDecrement = () => {
-    dispatch(decrementItem(item.id));
+    dispatch(decrementItem(itemId));
   };
 
   return (
@@ -74,7 +77,7 @@ const MenuItemCard: React.FC<MenuItemCardProps> = ({ item }) => {
         </ScrollView> */}
 
         <View style={styles.footer}>
-          <Text style={styles.price}>{formatINR(item.price)}</Text>
+          <Text style={styles.price}>₹{item.price}</Text>
 
           {quantity === 0 ? (
             <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>

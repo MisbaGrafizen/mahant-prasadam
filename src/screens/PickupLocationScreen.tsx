@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,13 @@ import {
   ScrollView,
   Image,
   Dimensions,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import PickupDateModal from '../components/OthersModal/NormalDateModal';
 import Header from '../components/Header';
+import { ApiGet, ApiPost } from '../helper/axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -20,7 +23,6 @@ interface Location {
   id: string;
   name: string;
   image?: string;
-  available: boolean;
 }
 
 interface PickupLocationScreenProps {
@@ -29,35 +31,66 @@ interface PickupLocationScreenProps {
 
 const PickupLocationScreen: React.FC<PickupLocationScreenProps> = ({ navigation }) => {
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2025, 7, 27)); // 27/08/2025
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date()); // 27/08/2025
   const [showDateModal, setShowDateModal] = useState<boolean>(false);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const locations: Location[] = [
-    {
-      id: 'kalawad-road',
-      name: 'Kalawad Road',
-      image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
-      available: true,
-    },
-    {
-      id: 'university',
-      name: 'University',
-       image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
-      available: true,
-    },
-    {
-      id: 'mavdi',
-      name: 'Mavdi',
-   image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
-      available: true,
-    },
-    {
-      id: 'pramukhrvatika',
-      name: 'Pramukhrvatika',
-   image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
-      available: true,
-    },
-  ];
+
+  useEffect(() => {
+    const fetchLocations = async () => {
+      const prasadType = await AsyncStorage.getItem('prasadType');
+      console.log('prasadType', prasadType)
+
+      try {
+        const response = await ApiGet(`/admin/premvati`);
+        console.log('response', response)
+        if (response?.status === 'success') {
+          const normalized: Location[] = (response.data || []).map((loc: any) => ({
+            id: String(loc._id ?? loc.id ?? ''),
+            name: String(loc.name ?? 'Unnamed'),
+            image: loc.image ?? undefined,
+          }));
+          setLocations(normalized);
+        } else {
+          console.warn('Failed to fetch locations:', response);
+        }
+      } catch (error) {
+        console.error('Error fetching locations:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLocations();
+  }, []);
+  // const locations: Location[] = [
+  //   {
+  //     id: 'kalawad-road',
+  //     name: 'Kalawad Road',
+  //     image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
+  //     available: true,
+  //   },
+  //   {
+  //     id: 'university',
+  //     name: 'University',
+  //      image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
+  //     available: true,
+  //   },
+  //   {
+  //     id: 'mavdi',
+  //     name: 'Mavdi',
+  //  image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
+  //     available: true,
+  //   },
+  //   {
+  //     id: 'pramukhrvatika',
+  //     name: 'Pramukhrvatika',
+  //  image: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-08-23%20at%2010.15.50%E2%80%AFAM-uDdkAWV5ZEOmPQhnvFT8hh7iK9YlDW.png', // Replace with actual image
+  //     available: true,
+  //   },
+  // ];
 
   const formatDate = (date: Date): string => {
     const day = date.getDate().toString().padStart(2, '0');
@@ -85,74 +118,153 @@ const PickupLocationScreen: React.FC<PickupLocationScreenProps> = ({ navigation 
 
   const handleOrderSummary = (): void => {
     if (!selectedLocation) {
-      alert('Please select a pickup location');
+      Alert.alert('Please select a pickup location');
       return;
     }
-    
+
     console.log('Proceeding with:', {
       location: selectedLocation,
       date: selectedDate,
     });
-    
+
     // Navigate to order summary
     // navigation?.navigate('OrderSummary', { location: selectedLocation, date: selectedDate });
   };
 
-    const handleBack = () => {
+  const handleBack = () => {
     navigation.goBack();
   };
 
-  const handleContinue = () => {
-    // Change "Location" to your actual route name if different
-    navigation.navigate('Ordersummary');
-  };
+const handleContinue = async () => {
+  if (!selectedLocation) {
+    Alert.alert('Select Location', 'Please select a pickup location.');
+    return;
+  }
 
-  const renderLocationCard = (location: Location) => (
-    <TouchableOpacity
-      key={location.id}
-      style={[
-        styles.locationCard,
-        selectedLocation === location.id && styles.selectedLocationCard,
-        !location.available && styles.unavailableCard,
-      ]}
-      onPress={() => location.available && handleLocationSelect(location.id)}
-      activeOpacity={location.available ? 0.7 : 1}
-    >
-      {location.image ? (
-        <View style={styles.cardImageContainer}>
-          <Image
-            source={{ uri: location.image }}
-            style={styles.cardImage}
-            resizeMode="cover"
-          />
-        </View>
-      ) : (
-        <View style={styles.cardPlaceholder} />
-      )}
-      
-      <View style={[
-        styles.cardLabel,
-        location.available ? styles.availableLabel : styles.unavailableLabel
-      ]}>
-        <Text style={styles.cardLabelText}>{location.name}</Text>
-        {selectedLocation === location.id && (
-          <Icon name="check-circle" size={20} color="#FFFFFF" />
+  try {
+    setSubmitting(true);
+
+    // 1) Read selection & basics
+    const [storedServing, userId, prasadType, pickupDate] = await Promise.all([
+      AsyncStorage.getItem('selectedServingItems'),
+      AsyncStorage.getItem('userId'),
+      AsyncStorage.getItem('prasadType'),
+      AsyncStorage.getItem('pickupDetails'), 
+    ]);
+    console.log('pickupDate', pickupDate)
+
+    if (!userId || !prasadType) {
+      Alert.alert('Missing info', 'User or prasad type not found.');
+      return;
+    }
+
+    // 2) Ensure serving methods selected (robust parse)
+    let selectedServing: any[] = [];
+    try {
+      selectedServing = storedServing ? JSON.parse(storedServing) : [];
+    } catch {
+      selectedServing = [];
+    }
+
+    const selected = (selectedServing || [])
+      .map((it: any) => ({
+        _id: String(it?._id ?? it?.id ?? ''),
+        quantity: Number(it?.quantity ?? 0),
+      }))
+      .filter((it: any) => it._id && it.quantity > 0);
+
+    if (!selected.length) {
+      Alert.alert('Select serving', 'Please add at least one serving method.');
+      return;
+    }
+
+    // 3) Build payload for backend
+    const servingMethodId = selected.map((it: any) => ({
+      servingMethod: it._id,
+      quantity: it.quantity,
+    }));
+
+    // 4) Create order
+    const path = `/${prasadType}/create_order`;
+    const res = await ApiPost(path, { userId, servingMethodId });
+
+    const ok =
+      res?.status === 201 ||
+      res?.data?.message === 'Order created successfully' ||
+      res?.data?.status === 'success';
+
+    if (!ok) {
+      Alert.alert('Order failed', res?.data?.message ?? 'Could not create order.');
+      return;
+    }
+
+    const orderPayload = res?.data?.data ?? res?.data ?? {};
+    const orderId = String(orderPayload?._id ?? orderPayload?.id ?? '');
+
+    // 5) Persist pickup meta and order for later screens
+    await Promise.all([
+      AsyncStorage.setItem('selectedPickupLocation', selectedLocation),
+      AsyncStorage.setItem('lastCreatedOrder', JSON.stringify(orderPayload)),
+    ]);
+
+    // 6) Navigate to Order Summary with state
+    navigation.navigate('Ordersummary', {
+      pickupLocationId: selectedLocation,
+      pickupDate: pickupDate?.pickupDate?.toISOString(),
+      order: orderPayload,
+      orderId,
+    });
+  } catch (error: any) {
+    console.error('Error on continue/create order:', error);
+    Alert.alert('Error', error?.response?.data?.message ?? 'Something went wrong while creating the order.');
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+
+
+  console.log('Location', locations)
+
+    const renderLocationCard = (location: Location) => {
+    const isSelected = selectedLocation === location.id;
+
+    return (
+      <TouchableOpacity
+        key={location.id}
+        style={[
+          styles.locationCard,
+          isSelected && styles.selectedLocationCard,
+        ]}
+        onPress={() => handleLocationSelect(location.id)}
+        activeOpacity={0.7}
+      >
+        {location.image ? (
+          <View style={styles.cardImageContainer}>
+            <Image source={{ uri: location.image }} style={styles.cardImage} resizeMode="cover" />
+          </View>
+        ) : (
+          <View style={styles.cardPlaceholder} />
         )}
-      </View>
-      
-      {!location.available && (
-        <View style={styles.unavailableOverlay}>
-          <Text style={styles.unavailableText}>Coming Soon</Text>
+
+        <View style={[styles.cardLabel, styles.availableLabel]}>
+          <Text style={styles.cardLabelText}>{location.name}</Text>
+          {isSelected && <Icon name="check-circle" size={20} color="#FFFFFF" />}
         </View>
-      )}
-    </TouchableOpacity>
-  );
+
+        {/* Always show Coming Soon */}
+        {/* <View style={styles.unavailableOverlay}>
+          <Text style={styles.unavailableText}>Coming Soon</Text>
+        </View> */}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
-     <View style={{marginTop:"-14%"}}>
-      <Header />
+      <View style={{ marginTop: "-14%" }}>
+        <Header />
       </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Top Header Buttons */}
@@ -160,8 +272,8 @@ const PickupLocationScreen: React.FC<PickupLocationScreenProps> = ({ navigation 
           <TouchableOpacity style={styles.locationHeaderButton} activeOpacity={0.8}>
             <Text style={styles.locationHeaderText}>Select your location</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.dateHeaderButton}
             onPress={handleDatePress}
             activeOpacity={0.8}
@@ -179,13 +291,13 @@ const PickupLocationScreen: React.FC<PickupLocationScreenProps> = ({ navigation 
         {/* Bottom Buttons */}
 
       </ScrollView>
-     <View style={styles.stickyBar}>
+      <View style={styles.stickyBar}>
         <TouchableOpacity style={styles.backFab} onPress={handleBack} activeOpacity={0.8}>
           <Icon name="arrow-back" size={22} color="#000" />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.ctaBtn} onPress={handleContinue} activeOpacity={0.9}>
-          <Text style={styles.ctaText}>Order Summary</Text>
+          <Text style={styles.ctaText}>{submitting ? 'Placing…' : 'Order Summary'}</Text>
         </TouchableOpacity>
       </View>
       {/* Date Picker Modal */}
@@ -401,7 +513,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-    stickyBar: {
+  stickyBar: {
     position: 'absolute',
     left: 16,
     right: 16,
@@ -425,8 +537,8 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

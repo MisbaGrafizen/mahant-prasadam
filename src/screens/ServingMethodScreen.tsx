@@ -2,7 +2,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, StatusBar,
-  TouchableOpacity, ScrollView, SectionList, ViewToken
+  TouchableOpacity, ScrollView, SectionList, ViewToken,
+  Alert
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -13,6 +14,8 @@ import { RootState } from '../store';
 import Header from '../components/Header';
 import PickupDateModal from '../components/PickupDateModal';
 import ServingCard from '../components/ServingCard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiGet, ApiPost } from '../helper/axios';
 
 const PILL_HEIGHT = 44;
 let HAS_SHOWN_PICKUP_MODAL = false;
@@ -21,7 +24,7 @@ const ServingMethodScreen: React.FC = () => {
   const navigation = useNavigation<any>();
 
   // Pull from store (serving catalog)
-  const { data: serving, loading } = useSelector((s: RootState) => s.serving);
+  const { data: serving } = useSelector((s: RootState) => s.serving);
 
   // One-time modal (memory)
   const [modalVisible, setModalVisible] = useState(false);
@@ -34,28 +37,128 @@ const ServingMethodScreen: React.FC = () => {
   // Section list + pills logic
   const sectionListRef = useRef<SectionList<any>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
+  const [servingMethods, setServingMethods] = useState<any[]>([]);
   const jumpingRef = useRef(false);
+  const [qtyById, setQtyById] = useState<Record<string, number>>({});
+
+
+  const normalizeId = (it: any) => String(it?._id ?? it?.id ?? '');
+  const getItemQty = (it: any) => qtyById[normalizeId(it)] ?? 0;
+  const setItemQty = (it: any, next: number) => {
+    const id = normalizeId(it);
+    if (!id) return;
+    setQtyById(prev => {
+      const q = Math.max(0, next);
+      const copy = { ...prev };
+      if (q === 0) delete copy[id];
+      else copy[id] = q;
+      return copy;
+    });
+  };
+  const incItem = (it: any) => setItemQty(it, getItemQty(it) + 1);
+  const decItem = (it: any) => setItemQty(it, getItemQty(it) - 1);
+
+  const mergeQuantity = (it: any) => {
+    const id = normalizeId(it);
+    const quantity = qtyById[id] ?? Number(it?.quantity ?? 0) ?? 0;
+    return {
+      ...(it || {}),
+      id: it?.id ?? it?._id,   // keep both keys for downstream
+      _id: it?._id ?? it?.id,
+      quantity,
+    };
+  };
+
+  const getAllItemsWithQty = () => {
+    const all = servingMethods.flatMap((s: any) => s?.items ?? []);
+    return all.map(mergeQuantity);
+  };
+
+  const getSelectedItems = () => {
+    return getAllItemsWithQty().filter((it: any) => (Number(it.quantity) || 0) > 0);
+  };
+
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const prasadType = await AsyncStorage.getItem('prasadType');
+
+
+        const categoryRes = await ApiGet(`/${prasadType}/servingCategories`);
+        console.log('categoryRes', categoryRes)
+        const fetchedCategories = categoryRes.data || [];
+        setCategories(fetchedCategories);
+        if (fetchedCategories.length > 0) {
+          setSelectedCategory(fetchedCategories[0]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch serving categories:', err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    const fetchMethods = async () => {
+      if (!selectedCategory) return;
+      try {
+        const prasadType = await AsyncStorage.getItem('prasadType');
+        const methodRes = await ApiGet(`/${prasadType}/serving-method/${selectedCategory._id}`);
+        console.log('methodRes', methodRes)
+        const items = methodRes.data || [];
+        setServingMethods([
+          {
+            name: selectedCategory.name || 'Items',
+            items: items
+          }
+        ]);
+      } catch (err) {
+        console.error('Failed to fetch serving methods:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMethods();
+  }, [selectedCategory]);
+
+  // ✅ 3) PREFILL QUANTITIES from AsyncStorage (put in a useEffect once)
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem('selectedServingItems');
+        if (stored) {
+          const parsed = JSON.parse(stored) as any[];
+          const qmap: Record<string, number> = {};
+          (parsed || []).forEach(it => {
+            const id = normalizeId(it);
+            const q = Number(it?.quantity ?? 0);
+            if (id && q > 0) qmap[id] = q;
+          });
+          setQtyById(qmap);
+        }
+      } catch (e) {
+        console.log('Prefill serving qty failed', e);
+      }
+    })();
+  }, []);
+
 
   // Safely map data to sections (supports categories or sections shape)
   const sections = useMemo(() => {
-    const d = serving;
-    if (!d) return [];
-    if (Array.isArray((d as any).categories)) {
-      return (d as any).categories.map((c: any) => ({
-        title: c.name ?? '',
-        data: Array.isArray(c.items) ? c.items : [],
-      }));
-    }
-    if (Array.isArray((d as any).sections)) {
-      return (d as any).sections.map((s: any) => ({
-        title: s.name ?? '',
-        data: Array.isArray(s.items) ? s.items : [],
-      }));
-    }
-    return [];
-  }, [serving]);
+    return servingMethods.map((section: any) => ({
+      title: section.name ?? '',
+      data: Array.isArray(section.items) ? section.items : [],
+    }));
+  }, [servingMethods]);
 
   const goToSection = (index: number) => {
+    if (categories[index]) setSelectedCategory(categories[index]); // ⬅️ added
+    const section = sections[index];
+    if (!section || !section.data || section.data.length === 0) return;
     setActiveIndex(index);
     jumpingRef.current = true;
     sectionListRef.current?.scrollToLocation({
@@ -77,17 +180,44 @@ const ServingMethodScreen: React.FC = () => {
     }
   ).current;
 
+
   const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
 
-  // Handlers for sticky footer
-  const handleBack = () => {
-    navigation.goBack();
+
+  const handleBack = () => navigation.goBack();
+
+  // ✅ Continue — persist only the selected serving methods and navigate
+  const handleContinue = async () => {
+    try {
+      const all = servingMethods.flatMap((s: any) => s?.items ?? []);
+
+      const selected = all
+        .map((it: any) => {
+          const id = normalizeId(it);
+          const q = qtyById[id] ?? Number(it?.quantity ?? 0) ?? 0;
+          return { ...it, _id: it?._id ?? it?.id, id, quantity: q };
+        })
+        .filter((it: any) => Number(it.quantity) > 0);
+
+      if (!selected.length) {
+        Alert.alert('Select serving', 'Please add at least one serving method.');
+        return;
+      }
+
+      // Store ONLY the selected serving methods with their quantities
+      await AsyncStorage.setItem('selectedServingItems', JSON.stringify(selected));
+
+      // Optional: also keep last selection for convenience
+      await AsyncStorage.setItem('lastServingSelection', JSON.stringify(qtyById));
+
+      // Navigate forward (no order creation here)
+      navigation.navigate('Location', { selectedServingItems: selected });
+    } catch (err: any) {
+      console.error('Persist serving selection error:', err);
+      Alert.alert('Error', 'Something went wrong while saving your selection.');
+    }
   };
 
-  const handleContinue = () => {
-    // Change "Location" to your actual route name if different
-    navigation.navigate('Location');
-  };
 
   if (loading) {
     return (
@@ -98,11 +228,11 @@ const ServingMethodScreen: React.FC = () => {
     );
   }
 
-  if (!sections.length) {
+  if (!categories.length) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorText}>Failed to load serving catalog</Text>
-        <PickupDateModal visible={modalVisible} onClose={handleCloseModal} onSave={handleSaveData} />
+        {/* <PickupDateModal visible={modalVisible} onClose={handleCloseModal} onSave={handleSaveData} /> */}
       </View>
     );
   }
@@ -114,17 +244,17 @@ const ServingMethodScreen: React.FC = () => {
 
       {/* Category pills */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsWrap}>
-        {sections.map((s, i) => {
-          const active = i === activeIndex;
+        {categories.map((cat, i) => {
+          const active = cat._id === selectedCategory?._id;
           return (
             <TouchableOpacity
-              key={s.title}
+              key={cat._id}
               onPress={() => goToSection(i)}
               style={[styles.pill, active && styles.pillActive]}
               activeOpacity={0.9}
             >
               <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                {s.title.toUpperCase()}
+                {cat.name.toUpperCase()}
               </Text>
             </TouchableOpacity>
           );
@@ -136,7 +266,14 @@ const ServingMethodScreen: React.FC = () => {
         ref={sectionListRef}
         sections={sections}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ServingCard item={item} />}
+        renderItem={({ item }) => (
+          <ServingCard
+            item={item}
+            quantity={getItemQty(item)}
+            onIncrease={() => incItem(item)}
+            onDecrease={() => decItem(item)}
+          />
+        )}
         renderSectionHeader={() => <View style={{ height: 8 }} />}
         stickySectionHeadersEnabled={false}
         showsVerticalScrollIndicator={false}
@@ -160,7 +297,7 @@ const ServingMethodScreen: React.FC = () => {
       </View>
 
       {/* One-time modal */}
-   
+
     </View>
   );
 };
@@ -214,8 +351,8 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
