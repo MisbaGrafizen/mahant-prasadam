@@ -1,9 +1,13 @@
 "use client"
 
 import type React from "react"
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView } from "react-native"
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Alert } from "react-native"
 import Icon from "react-native-vector-icons/MaterialIcons"
 import Header from "../components/Header"
+import { useRoute } from "@react-navigation/native"
+import { useEffect, useState } from "react"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import { ApiGet } from "../helper/axios"
 
 
 interface OrderItem {
@@ -29,39 +33,73 @@ interface OrderReceiptData {
 }
 
 const OrderReceiptScreen: React.FC = () => {
-  const orderData: OrderReceiptData = {
-    orderId: "68a7f76a6a84f5a00a0f9ff0",
-    orderDate: "August 22nd 2025",
-    orderFor: "August 27th 2025, 5:30:00 am",
-    pickupLocation: "Pramukhvatika",
-    sections: [
-      {
-        title: "Items",
-        items: [
-          {
-            id: "1",
-            name: "BISC. BADAM PISTA 250 GM",
-            quantity: 2,
-            amount: 120,
-          },
-        ],
-        totalAmount: 120,
-      },
-      {
-        title: "Items",
-        items: [
-          {
-            id: "2",
-            name: "test",
-            quantity: 2,
-            amount: 8,
-          },
-        ],
-        totalAmount: 8,
-      },
-    ],
-    grandTotal: 128,
-  }
+
+  const [receiptData, setReceiptData] = useState<OrderReceiptData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const route = useRoute<any>();
+  const orderData = route?.params?.receipt;
+  const orderId = orderData?.orderId;
+
+  console.log('orderId', orderId)
+
+
+  useEffect(() => {
+    const fetchReceipt = async () => {
+      try {
+        const prasadType = await AsyncStorage.getItem("prasadType");
+        const response = await ApiGet(`/${prasadType}/order-receipt/${orderId}`);
+        console.log('response', response)
+
+        if (response?.status === "success") {
+          const data = response.data;
+
+          const itemsSection = {
+            title: "Items",
+            totalAmount: data.totalFoodItemsPrice || 0,
+            items: data.orderSummary.items?.map((item, index) => ({
+              id: `${index}`,
+              name: item.foodItem?.name || "Unknown Item",
+              quantity: item.quantity,
+              amount: item.totalPrice,
+            })),
+          };
+
+          const servingSection = {
+            title: "Serving Methods",
+            totalAmount: data.totalServingMethodPrice || 0,
+            items: data.orderSummary.servingMethodId?.map((serving, index) => ({
+              id: `s-${index}`,
+              name: serving.servingMethod?.name || "Serving",
+              quantity: serving?.quantity,
+              amount: serving?.totalPrice || 0,
+            })),
+          };
+
+          setReceiptData({
+            orderId: data.orderSummary._id,
+            orderDate: data.orderSummary.createdAt,
+            orderFor: data.orderSummary.orderDate?.pickupDate,
+            pickupLocation: data.orderSummary.pickupLocation?.name,
+            grandTotal: data.totalAmount,
+            sections: [itemsSection, servingSection],
+          });
+        } else {
+          Alert.alert("Failed", response?.data?.message || "Failed to fetch receipt");
+        }
+      } catch (err: any) {
+        console.error("Receipt fetch failed", err);
+        Alert.alert("Error", err?.response?.data?.message || "Something went wrong");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (orderId) fetchReceipt();
+  }, [orderId]);
+
+
+
 
   const handleBackToOrders = (): void => {
     console.log("Navigate back to orders listing")
@@ -94,7 +132,7 @@ const OrderReceiptScreen: React.FC = () => {
   const renderSection = (section: OrderSection, index: number) => (
     <View key={index} style={styles.section}>
       {renderTableHeader()}
-      {section.items.map((item) => renderTableRow(item))}
+      {section.items?.map((item) => renderTableRow(item))}
       <View style={styles.divider} />
       {renderTotalRow(section.totalAmount)}
     </View>
@@ -102,50 +140,50 @@ const OrderReceiptScreen: React.FC = () => {
 
   return (
     <>
-  <View style={styles.container}>
-              <Header />
+      <View style={styles.container}>
+        <Header />
 
-    <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container}>
 
-      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+          <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerText}>Order confirmation receipt</Text>
-        </View>
-
-        {/* Receipt Card */}
-        <View style={styles.receiptCard}>
-          {/* Order Details */}
-          <View style={styles.orderDetails}>
-            <Text style={styles.orderDetailText}>Order ID {orderData.orderId}</Text>
-            <Text style={styles.orderDetailText}>Order on - {orderData.orderDate}</Text>
-            <Text style={styles.orderDetailText}>Order for - {orderData.orderFor}</Text>
-            <Text style={styles.orderDetailText}>Pickup location - {orderData.pickupLocation}</Text>
-          </View>
-
-          {/* Order Sections */}
-          {orderData.sections.map((section, index) => renderSection(section, index))}
-
-          {/* Grand Total */}
-          <View style={styles.grandTotalSection}>
-            <View style={styles.grandTotalRow}>
-              <Text style={[styles.grandTotalText, styles.itemsColumn]}>GRAND TOTAL</Text>
-              <Text style={[styles.grandTotalText, styles.qtyColumn]}>N/A</Text>
-              <Text style={[styles.grandTotalText, styles.amtColumn]}>{orderData.grandTotal}</Text>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerText}>Order confirmation receipt</Text>
             </View>
-          </View>
-        </View>
 
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={handleBackToOrders} activeOpacity={0.8}>
-          <Icon name="arrow-back" size={24} color="#FFFFFF" />
-          <Text style={styles.backButtonText}>Back to orders listing</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
-  </View>
+            {/* Receipt Card */}
+            <View style={styles.receiptCard}>
+              {/* Order Details */}
+              <View style={styles.orderDetails}>
+                <Text style={styles.orderDetailText}>Order ID {receiptData?.orderId}</Text>
+                <Text style={styles.orderDetailText}>Order on - {receiptData?.orderDate}</Text>
+                <Text style={styles.orderDetailText}>Order for - {receiptData?.orderFor}</Text>
+                <Text style={styles.orderDetailText}>Pickup location - {receiptData?.pickupLocation}</Text>
+              </View>
+
+              {/* Order Sections */}
+              {receiptData?.sections?.map((section, index) => renderSection(section, index))}
+
+              {/* Grand Total */}
+              <View style={styles.grandTotalSection}>
+                <View style={styles.grandTotalRow}>
+                  <Text style={[styles.grandTotalText, styles.itemsColumn]}>GRAND TOTAL</Text>
+                  <Text style={[styles.grandTotalText, styles.qtyColumn]}>N/A</Text>
+                  <Text style={[styles.grandTotalText, styles.amtColumn]}>{receiptData?.grandTotal}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Back Button */}
+            <TouchableOpacity style={styles.backButton} onPress={handleBackToOrders} activeOpacity={0.8}>
+              <Icon name="arrow-back" size={24} color="#FFFFFF" />
+              <Text style={styles.backButtonText}>Back to orders listing</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
     </>
   )
 }
@@ -286,7 +324,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F44336",
-    fontWeight:"800",
+    fontWeight: "800",
 
     paddingVertical: 10,
     paddingHorizontal: 24,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -37,7 +38,7 @@ const NormalDateModal: React.FC<NormalDateModalProps> = ({
   };
 
   const formatTime = (time: Date): string => {
-    return time.toLocaleTimeString('en-US', {
+    return time?.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -64,6 +65,28 @@ const NormalDateModal: React.FC<NormalDateModalProps> = ({
       time: selectedTime,
     });
   };
+
+  useEffect(() => {
+  const loadStoredDateTime = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('pickupDetails');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const storedDate = parsed?.pickupDate ? new Date(parsed.pickupDate) : new Date();
+        const storedTime = stored?.pickupTime;
+        setSelectedDate(storedDate);
+        setSelectedTime(storedTime); // Same object holds date+time
+        console.log('📦 Loaded stored pickup date:', storedDate);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load stored pickup date:', error);
+    }
+  };
+
+  if (visible) {
+    loadStoredDateTime();
+  }
+}, [visible]);
 
   return (
     <Modal

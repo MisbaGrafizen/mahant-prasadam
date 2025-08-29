@@ -20,7 +20,8 @@ import {
 import PickupDateModal from "../components/PickupDateModal";
 import NormalDateModal from "../components/OthersModal/NormalDateModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ApiGet } from "../helper/axios";
+import { ApiGet, ApiPost, ApiPut } from "../helper/axios";
+import { useRoute } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window")
 
@@ -39,20 +40,23 @@ interface ServingItem {
 }
 
 interface Props {
-  navigation: any;
+    navigation: any;
 }
 
 const OrderSummaryScreen: React.FC<Props> = ({ navigation }) => {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date()) // 27/08/2025
-
+    const route = useRoute();
+    const { pickupLocationId, pickupDate, order, orderId } = route.params;
 
     const [showDateModal, setShowDateModal] = useState<boolean>(false);
 
-    const [orderId, setOrderId] = useState<string | null>(null)
+    // const [orderId, setOrderId] = useState<string | null>(null)
     const [orderTotal, setOrderTotal] = useState<number>(0)
     const [orderFoodTotal, setOrderFoodTotal] = useState<number>(0)
     const [orderServingTotal, setOrderServingTotal] = useState<number>(0)
     const [submitting, setSubmitting] = useState<boolean>(false)
+    const [prasadType, setPrasadType] = useState<string | null>(null);
+
 
 
     const [orderItems, setOrderItems] = useState<Item[]>([])
@@ -65,6 +69,8 @@ const OrderSummaryScreen: React.FC<Props> = ({ navigation }) => {
         return `${day}/${month}/${year}`
     }
 
+    
+
     const persistServing = async (items: Item[]) => {
         try {
             await AsyncStorage.setItem("selectedServingItems", JSON.stringify(items))
@@ -75,13 +81,23 @@ const OrderSummaryScreen: React.FC<Props> = ({ navigation }) => {
 
     useEffect(() => {
         const loadData = async () => {
+               const pickupStorage = await AsyncStorage.getItem("pickupDetails");
+      if (pickupStorage) {
+        const parsed = JSON.parse(pickupStorage);
+        if (parsed?.pickupDate) {
+          const parsedDate = new Date(parsed.pickupDate);
+          setSelectedDate(parsedDate);
+        }
+      }
             try {
-                const [userId, prasadType] = await Promise.all([
+                const [userId, loadedPrasadType] = await Promise.all([
                     AsyncStorage.getItem("userId"),
                     AsyncStorage.getItem("prasadType"),
                 ])
 
-                if (!userId || !prasadType) {
+                setPrasadType(loadedPrasadType);
+
+                if (!userId || !loadedPrasadType) {
                     Alert.alert("Missing info", "User or prasad type not found.")
                     setLoading(false)
                     return
@@ -90,7 +106,7 @@ const OrderSummaryScreen: React.FC<Props> = ({ navigation }) => {
                 // 1) Fetch CART by user
                 // Expected response shape example:
                 // { cart: { items: [{ foodItem: {_id,name,price,image}, quantity }] } }
-                const cartRes = await ApiGet(`/${prasadType}/cart/${userId}`)
+                const cartRes = await ApiGet(`/${loadedPrasadType}/cart/${userId}`)
                 const serverCartItems = cartRes?.data?.items ?? []
 
                 const mappedOrderItems: Item[] = serverCartItems.map((row: any) => ({
@@ -114,277 +130,407 @@ const OrderSummaryScreen: React.FC<Props> = ({ navigation }) => {
                         image: it.image ?? undefined,
                     }))
                     setServingItems(mappedServing)
-            } else {
-                setServingItems([])
+                } else {
+                    setServingItems([])
+                }
+            } catch (err) {
+                console.error("Failed to load order summary:", err)
+                Alert.alert("Error", "Unable to load your order summary.")
+            } finally {
+                setLoading(false)
             }
-        } catch (err) {
-            console.error("Failed to load order summary:", err)
-            Alert.alert("Error", "Unable to load your order summary.")
-        } finally {
-            setLoading(false)
         }
+
+        loadData()
+    }, [])
+
+    const updateOrderItemQuantity = (itemId: string, change: number): void => {
+        setOrderItems((prev) =>
+            prev
+                .map((item) => (item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item))
+                .filter((item) => item.quantity > 0),
+        )
     }
 
-    loadData()
-  }, [])
+    const updateServingItemQuantity = (itemId: string, change: number): void => {
+        setServingItems(prev => {
+            const next = prev
+                .map(item =>
+                    item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item
+                )
+                .filter(item => item.quantity > 0)
+            persistServing(next) // save latest serving selection
+            return next
+        })
+    }
 
-const updateOrderItemQuantity = (itemId: string, change: number): void => {
-    setOrderItems((prev) =>
-        prev
-            .map((item) => (item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item))
-            .filter((item) => item.quantity > 0),
-    )
-}
+    const handleDatePress = (): void => {
+        setShowDateModal(true);
+    }
 
-const updateServingItemQuantity = (itemId: string, change: number): void => {
-    setServingItems(prev => {
-        const next = prev
-            .map(item =>
-                item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item
-            )
-            .filter(item => item.quantity > 0)
-        persistServing(next) // save latest serving selection
-        return next
-    })
-}
+    const handlePickupLocation = (): void => {
+        console.log("Navigate to pickup location")
+    }
 
-const handleDatePress = (): void => {
-    setShowDateModal(true);
-}
+    const handlePlaceOrder = (): void => {
+        console.log("Place order")
+    }
 
-const handlePickupLocation = (): void => {
-    console.log("Navigate to pickup location")
-}
+    const itemCount = orderItems.reduce((sum, i) => sum + i.quantity, 0)
+    const servingCount = servingItems.reduce((sum, i) => sum + i.quantity, 0)
+    const totalItems = itemCount + servingCount
 
-const handlePlaceOrder = (): void => {
-    console.log("Place order")
-}
+const handleDateSave = async (data: any): Promise<void> => {
+  const selected = data.date;
+  setSelectedDate(selected);
+  setShowDateModal(false);
 
-const itemCount = orderItems.reduce((sum, i) => sum + i.quantity, 0)
-const servingCount = servingItems.reduce((sum, i) => sum + i.quantity, 0)
-const totalItems = itemCount + servingCount
-
-const handleDateSave = (data: any): void => {
-    setSelectedDate(data.date);
-    setShowDateModal(false);
+  try {
+    await AsyncStorage.setItem(
+      'pickupDetails',
+      JSON.stringify({ pickupDate: selected.toISOString() })
+    );
+    console.log('📦 Saved pickup date:', selected.toISOString());
+  } catch (error) {
+    console.error('❌ Failed to save pickup date:', error);
+  }
 };
 
-const renderQuantityControls = (quantity: number, onDecrease: () => void, onIncrease: () => void) => (
-    <View style={styles.quantityContainer}>
-        <TouchableOpacity style={styles.quantityButton} onPress={onDecrease} activeOpacity={0.7}>
-            <Text style={styles.quantityButtonText}>-</Text>
-        </TouchableOpacity>
 
-        <View style={styles.quantityDisplay}>
-            <Text style={styles.quantityText}>QTY: {quantity}</Text>
+    const renderQuantityControls = (quantity: number, onDecrease: () => void, onIncrease: () => void) => (
+        <View style={styles.quantityContainer}>
+            <TouchableOpacity style={styles.quantityButton} onPress={onDecrease} activeOpacity={0.7}>
+                <Text style={styles.quantityButtonText}>-</Text>
+            </TouchableOpacity>
+
+            <View style={styles.quantityDisplay}>
+                <Text style={styles.quantityText}>QTY: {quantity}</Text>
+            </View>
+
+            <TouchableOpacity style={[styles.quantityButton, styles.increaseButton]} onPress={onIncrease} activeOpacity={0.7}>
+                <Text style={[styles.quantityButtonText, styles.increaseButtonText]}>+</Text>
+            </TouchableOpacity>
         </View>
+    )
 
-        <TouchableOpacity style={[styles.quantityButton, styles.increaseButton]} onPress={onIncrease} activeOpacity={0.7}>
-            <Text style={[styles.quantityButtonText, styles.increaseButtonText]}>+</Text>
-        </TouchableOpacity>
+    // const updateItemQuantity = (
+    //     items: Item[],
+    //     setItems: React.Dispatch<React.SetStateAction<Item[]>>,
+    //     itemId: string,
+    //     change: number
+    // ) => {
+    //     setItems((prev) =>
+    //         prev
+    //             .map((item) =>
+    //                 item.id === itemId
+    //                     ? { ...item, quantity: Math.max(0, item.quantity + change) }
+    //                     : item
+    //             )
+    //             .filter((item) => item.quantity > 0)
+    //     )
+    // }
+
+    // Calculate totals
+
+    const updateItemQuantity = (
+        items: Item[],
+        setItems: React.Dispatch<React.SetStateAction<Item[]>>,
+        itemId: string,
+        change: number
+    ) => {
+        setItems(prev => {
+            const next = prev
+                .map(item =>
+                    item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item
+                )
+                .filter(item => item.quantity > 0)
+            return next
+        })
+    }
+    const itemTotal = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+    const servingTotal = servingItems.reduce(
+        (sum, i) => sum + i.price * i.quantity,
+        0
+    )
+    const subTotal = itemTotal + servingTotal
+    console.log('subTotal', subTotal)
+    const deliveryFee = 20
+    const gst = Math.round(subTotal * 0.18)
+    const grandTotal = subTotal + deliveryFee + gst
+
+    const handleConfirmOrder = async () => {
+        try {
+            setSubmitting(true);
+
+            const prasadType = await AsyncStorage.getItem("prasadType");
+            const pickupDateRawString = await AsyncStorage.getItem("pickupDetails");
+            const pickupDateRaw = pickupDateRawString ? JSON.parse(pickupDateRawString) : null;
+            const userId = await AsyncStorage.getItem("userId");
+
+            if (!prasadType || !pickupDateRaw || !pickupLocationId || !orderId || !userId) {
+                Alert.alert("Missing Info", "Required fields are missing.");
+                return;
+            }
+
+            console.log('pickupDateRaw', pickupDateRaw)
+
+            // Prepare order summary items
+            const selectedItems = servingItems.filter(item => item.quantity > 0);
+            if (!selectedItems.length) {
+                Alert.alert('Empty Cart', 'Please add at least one item.');
+                return;
+            }
+
+            const items = selectedItems.map(item => ({
+                foodItem: item._id || item.id,
+                quantity: item.quantity,
+                price: item.price, 
+            }));
+
+            console.log("🛠 Update Order Payload", {
+                orderSummaryId: orderId,
+                userId,
+                items,
+            });
+
+            // const updateRes = await ApiPut(`/${prasadType}/order_summary/update`, {
+            //     orderSummaryId: orderId,
+            //     userId,
+            //     items,
+            // });
+
+            // console.log('updateRes', updateRes)
+            // if (updateRes?.data?._id !== "Order summary updated successfully") {
+            //   Alert.alert("Update Error", updateRes?.message ?? "Order summary update failed.");
+            //   return;
+            // }
+
+            // ✅ Create Receipt
+            const receiptPayload = {
+                orderId,
+                orderDate: pickupDateRaw?._id,
+                pickupLocation: pickupLocationId,
+            };
+
+            console.log('receiptPayload', receiptPayload)
+
+            const receiptRes = await ApiPost(`/${prasadType}/create-reciept`, receiptPayload);
+
+            console.log('receiptRes', receiptRes)
+
+            if (receiptRes?.data?.status !== "success") {
+                Alert.alert("Receipt Error", receiptRes?.data?.message ?? "Could not create receipt.");
+                return;
+            }
+
+            const receipt = receiptRes?.data?.data;
+            console.log('receipt', receipt)
+            navigation.navigate("Orderrecipt", { receipt });
+
+        } catch (error: any) {
+            console.error("❌ Confirm Order Error:", error);
+            Alert.alert("Error", error?.response?.data?.message ?? error?.message ?? "Something went wrong");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+
+
+
+
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+
+            <View style={{ marginTop: "-14%" }}>
+                <Header />
+            </View>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+                {/* User Profile Section */}
+
+
+                {/* Header Buttons */}
+                <View style={styles.headerButtons}>
+                    <TouchableOpacity style={styles.orderSummaryHeaderButton} activeOpacity={0.8}>
+                        <Text style={styles.orderSummaryHeaderText}>Item order summary</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.dateButton} onPress={handleDatePress} activeOpacity={0.8}>
+                        <Icon name="event" size={20} color="#FFFFFF" style={styles.calendarIcon} />
+                        <Text style={styles.dateButtonText}>{formatDate(selectedDate)}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Order Items */}
+                <View style={styles.orderItemsContainer}>
+                    {orderItems.map((item) => (
+                        <View key={item.id} style={styles.cartItem}>
+                            <Image source={{ uri: item.image }} style={styles.itemImage} />
+                            <View style={styles.itemInfo}>
+                                <Text style={styles.itemName}>{item.name}</Text>
+                                <Text style={styles.itemPrice}>₹{item.price}</Text>
+                                <View style={styles.quantityContainer}>
+                                    <TouchableOpacity
+                                        style={styles.quantityButton}
+                                        onPress={() =>
+                                            updateItemQuantity(orderItems, setOrderItems, item.id, -1)
+                                        }
+                                    >
+                                        <MaterialCommunityIcons
+                                            name="minus"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                    </TouchableOpacity>
+                                    <Text style={styles.quantity}>{item.quantity}</Text>
+                                    <TouchableOpacity
+                                        style={styles.quantityButton}
+                                        onPress={() =>
+                                            updateItemQuantity(orderItems, setOrderItems, item.id, 1)
+                                        }
+                                    >
+                                        <MaterialCommunityIcons
+                                            name="plus"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                            <Text style={styles.itemTotal}>
+                                ₹{item.price * item.quantity}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* Serving Method Section */}
+                {/* <View style={styles.servingMethodHeader}>
+                    <Text style={styles.servingMethodHeaderText}>Serving method summary</Text>
+                </View> */}
+                {prasadType === 'self-service' && (
+  <>
+    <View style={styles.servingMethodHeader}>
+      <Text style={styles.servingMethodHeaderText}>Serving method summary</Text>
     </View>
-)
 
-// const updateItemQuantity = (
-//     items: Item[],
-//     setItems: React.Dispatch<React.SetStateAction<Item[]>>,
-//     itemId: string,
-//     change: number
-// ) => {
-//     setItems((prev) =>
-//         prev
-//             .map((item) =>
-//                 item.id === itemId
-//                     ? { ...item, quantity: Math.max(0, item.quantity + change) }
-//                     : item
-//             )
-//             .filter((item) => item.quantity > 0)
-//     )
-// }
-
-// Calculate totals
-
-const updateItemQuantity = (
-    items: Item[],
-    setItems: React.Dispatch<React.SetStateAction<Item[]>>,
-    itemId: string,
-    change: number
-) => {
-    setItems(prev => {
-        const next = prev
-            .map(item =>
-                item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + change) } : item
-            )
-            .filter(item => item.quantity > 0)
-        return next
-    })
-}
-const itemTotal = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
-const servingTotal = servingItems.reduce(
-    (sum, i) => sum + i.price * i.quantity,
-    0
-)
-const subTotal = itemTotal + servingTotal
-const deliveryFee = 20
-const gst = Math.round(subTotal * 0.18)
-const grandTotal = subTotal + deliveryFee + gst
-
-
-return (
-    <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
-
-        <View style={{ marginTop: "-14%" }}>
-            <Header />
+    <View style={styles.servingItemsContainer}>
+      {servingItems.map((item) => (
+        <View key={item.id} style={styles.cartItem}>
+          <Image source={{ uri: item.image }} style={styles.itemImage} />
+          <View style={styles.itemInfo}>
+            <Text style={styles.itemName}>{item.name}</Text>
+            <Text style={styles.itemPrice}>₹{item.price}</Text>
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => updateServingItemQuantity(item.id, -1)}
+              >
+                <MaterialCommunityIcons name="minus" size={16} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.quantity}>{item.quantity}</Text>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={() => updateServingItemQuantity(item.id, 1)}
+              >
+                <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <Text style={styles.itemTotal}>₹{item.price * item.quantity}</Text>
         </View>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* User Profile Section */}
+      ))}
+    </View>
+  </>
+)}
 
 
-            {/* Header Buttons */}
-            <View style={styles.headerButtons}>
-                <TouchableOpacity style={styles.orderSummaryHeaderButton} activeOpacity={0.8}>
-                    <Text style={styles.orderSummaryHeaderText}>Item order summary</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.dateButton} onPress={handleDatePress} activeOpacity={0.8}>
-                    <Icon name="event" size={20} color="#FFFFFF" style={styles.calendarIcon} />
-                    <Text style={styles.dateButtonText}>{formatDate(selectedDate)}</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Order Items */}
-            <View style={styles.orderItemsContainer}>
-                {orderItems.map((item) => (
-                    <View key={item.id} style={styles.cartItem}>
-                        <Image source={{ uri: item.image }} style={styles.itemImage} />
-                        <View style={styles.itemInfo}>
-                            <Text style={styles.itemName}>{item.name}</Text>
-                            <Text style={styles.itemPrice}>₹{item.price}</Text>
-                            <View style={styles.quantityContainer}>
-                                <TouchableOpacity
-                                    style={styles.quantityButton}
-                                    onPress={() =>
-                                        updateItemQuantity(orderItems, setOrderItems, item.id, -1)
-                                    }
-                                >
-                                    <MaterialCommunityIcons
-                                        name="minus"
-                                        size={16}
-                                        color={colors.primary}
-                                    />
-                                </TouchableOpacity>
-                                <Text style={styles.quantity}>{item.quantity}</Text>
-                                <TouchableOpacity
-                                    style={styles.quantityButton}
-                                    onPress={() =>
-                                        updateItemQuantity(orderItems, setOrderItems, item.id, 1)
-                                    }
-                                >
-                                    <MaterialCommunityIcons
-                                        name="plus"
-                                        size={16}
-                                        color={colors.primary}
-                                    />
-                                </TouchableOpacity>
+                {/* <View style={styles.servingItemsContainer}>
+                    {servingItems.map((item) => (
+                        <View key={item.id} style={styles.cartItem}>
+                            <Image source={{ uri: item.image }} style={styles.itemImage} />
+                            <View style={styles.itemInfo}>
+                                <Text style={styles.itemName}>{item.name}</Text>
+                                <Text style={styles.itemPrice}>₹{item.price}</Text>
+                                <View style={styles.quantityContainer}>
+                                    <TouchableOpacity
+                                        style={styles.quantityButton}
+                                        onPress={() => updateServingItemQuantity(item.id, -1)}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name="minus"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                    </TouchableOpacity>
+                                    <Text style={styles.quantity}>{item.quantity}</Text>
+                                    <TouchableOpacity
+                                        style={styles.quantityButton}
+                                        onPress={() => updateServingItemQuantity(item.id, 1)}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name="plus"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
+                            <Text style={styles.itemTotal}>
+                                ₹{item.price * item.quantity}
+                            </Text>
                         </View>
-                        <Text style={styles.itemTotal}>
-                            ₹{item.price * item.quantity}
-                        </Text>
-                    </View>
-                ))}
-            </View>
-
-            {/* Serving Method Section */}
-            <View style={styles.servingMethodHeader}>
-                <Text style={styles.servingMethodHeaderText}>Serving method summary</Text>
-            </View>
-
-            <View style={styles.servingItemsContainer}>
-                {servingItems.map((item) => (
-                    <View key={item.id} style={styles.cartItem}>
-                        <Image source={{ uri: item.image }} style={styles.itemImage} />
-                        <View style={styles.itemInfo}>
-                            <Text style={styles.itemName}>{item.name}</Text>
-                            <Text style={styles.itemPrice}>₹{item.price}</Text>
-                            <View style={styles.quantityContainer}>
-                                <TouchableOpacity
-                                    style={styles.quantityButton}
-                                    onPress={() => updateServingItemQuantity(item.id, -1)}
-                                >
-                                    <MaterialCommunityIcons
-                                        name="minus"
-                                        size={16}
-                                        color={colors.primary}
-                                    />
-                                </TouchableOpacity>
-                                <Text style={styles.quantity}>{item.quantity}</Text>
-                                <TouchableOpacity
-                                    style={styles.quantityButton}
-                                    onPress={() => updateServingItemQuantity(item.id, 1)}
-                                >
-                                    <MaterialCommunityIcons
-                                        name="plus"
-                                        size={16}
-                                        color={colors.primary}
-                                    />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                        <Text style={styles.itemTotal}>
-                            ₹{item.price * item.quantity}
-                        </Text>
-                    </View>
-                ))}
-            </View>
+                    ))}
+                </View> */}
 
 
 
-            {/* Bottom Navigation */}
+                {/* Bottom Navigation */}
 
-        </ScrollView>
+            </ScrollView>
 
-        <View style={styles.billContainer}>
-            <Text style={styles.billTitle}>Bill Summary</Text>
+            <View style={styles.billContainer}>
+                <Text style={styles.billTitle}>Bill Summary</Text>
 
-            <View style={styles.billRow}>
-                <Text style={styles.billLabel}>Total Items</Text>
-                <Text style={styles.billValue}>{totalItems}</Text>
-            </View>
+                <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Total Items</Text>
+                    <Text style={styles.billValue}>{totalItems}</Text>
+                </View>
 
-            {/* <View style={styles.billRow}>
+                {/* <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Delivery Fee</Text>
                     <Text style={styles.billValue}>2</Text>
                 </View> */}
 
-            {/* <View style={styles.billRow}>
+                {/* <View style={styles.billRow}>
                     <Text style={styles.billLabel}>GST (18%)</Text>
                     <Text style={styles.billValue}>23</Text>
                 </View> */}
 
-            <View style={[styles.billRow, styles.totalRow]}>
-                <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalValue}>₹{itemTotal}</Text>
-            </View>
+                <View style={[styles.billRow, styles.totalRow]}>
+                    <Text style={styles.totalLabel}>Total Amount</Text>
+                    <Text style={styles.totalValue}>₹{subTotal}</Text>
+                </View>
 
-            <TouchableOpacity style={styles.checkoutButton}
-              onPress={() => {
-    // you can also pass order data to receipt screen
-    navigation.navigate("Orderrecipt")
-  }}>
-                <Text style={styles.checkoutButtonText}>
-                    Confirm Order
-                </Text>
-            </TouchableOpacity>
-        </View>
-        <NormalDateModal
-            visible={showDateModal}
-            onClose={() => setShowDateModal(false)}
-            onSave={handleDateSave}
-        />
-    </SafeAreaView>
-)
+                <TouchableOpacity
+                    style={styles.checkoutButton}
+                    onPress={handleConfirmOrder}
+                >
+                    <Text style={styles.checkoutButtonText}>
+                        {submitting ? "Ordering" : "Confirm Order"}
+                    </Text>
+                </TouchableOpacity>
+
+            </View>
+            <NormalDateModal
+                visible={showDateModal}
+                onClose={() => setShowDateModal(false)}
+                onSave={handleDateSave}
+            />
+        </SafeAreaView>
+    )
 }
 
 const styles = StyleSheet.create({

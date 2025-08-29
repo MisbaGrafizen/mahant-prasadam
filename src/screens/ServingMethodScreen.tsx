@@ -6,7 +6,7 @@ import {
   Alert
 } from 'react-native';
 import { useSelector } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 import { colors } from '../theme/colors';
@@ -80,6 +80,17 @@ const ServingMethodScreen: React.FC = () => {
   const getSelectedItems = () => {
     return getAllItemsWithQty().filter((it: any) => (Number(it.quantity) || 0) > 0);
   };
+
+  // ✅ Clear serving selections when this screen is opened
+useFocusEffect(
+  React.useCallback(() => {
+    const resetServingScreen = async () => {
+      await AsyncStorage.removeItem('selectedServingItems');
+      setQtyById({}); // reset quantity to 0 on every open
+    };
+    resetServingScreen();
+  }, [])
+);
 
 
   useEffect(() => {

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -10,6 +11,7 @@ import {
     Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { ApiGet } from '../helper/axios';
 
 const { width } = Dimensions.get('window');
 
@@ -27,14 +29,37 @@ interface ProfileScreenProps {
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-    const [profileData] = useState<ProfileData>({
-        name: 'Swamibapa',
-        pravruti: 'Bal Mandal',
-        kshetra: 'Rajkot - 1',
-        designation: 'Mandal Sanchalak',
-        phoneNo: '9924022911',
-        age: '---',
-    });
+    // const [profileData] = useState<ProfileData>({
+    //     name: 'Swamibapa',
+    //     pravruti: 'Bal Mandal',
+    //     kshetra: 'Rajkot - 1',
+    //     designation: 'Mandal Sanchalak',
+    //     phoneNo: '9924022911',
+    //     age: '---',
+    // });
+
+    const [profileData, setProfileData] = useState<ProfileData | null>(null);
+
+useEffect(() => {
+  const fetchProfile = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      console.log('userId', userId)
+      if (!userId) return;
+
+      const response = await ApiGet(`/user/get_user/${userId}`);
+      console.log('responsdfgregere', response)
+      if (response?.status === "success") {
+        setProfileData(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+    }
+  };
+
+  fetchProfile();
+}, []);
+
 
     const handleNotificationPress = (): void => {
         console.log('Notification pressed');
@@ -104,38 +129,38 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                         {/* Name */}
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Name:</Text>
-                            <Text style={styles.detailValue}>{profileData.name}</Text>
+                            <Text style={styles.detailValue}>{profileData?.name}</Text>
                         </View>
 
                         {/* Pravruti */}
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Pravruti:</Text>
-                            <Text style={styles.detailValue}>{profileData.pravruti}</Text>
+                            <Text style={styles.detailValue}>{profileData?.pravruti?.name}</Text>
                         </View>
 
                         {/* Kshetra */}
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Kshetra:</Text>
-                            <Text style={styles.detailValue}>{profileData.kshetra}</Text>
+                            <Text style={styles.detailValue}>{profileData?.kshetra?.name}</Text>
                         </View>
 
                         {/* Designation */}
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Designation:</Text>
-                            <Text style={styles.detailValue}>{profileData.designation}</Text>
+                            <Text style={styles.detailValue}>{profileData?.designation?.name}</Text>
                         </View>
 
                         {/* Phone Number */}
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Phone no:</Text>
-                            <Text style={styles.detailValue}>{profileData.phoneNo}</Text>
+                            <Text style={styles.detailValue}>{profileData?.phoneNumber}</Text>
                         </View>
 
                         {/* Age */}
-                        <View style={styles.detailRow}>
+                        {/* <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Age:</Text>
-                            <Text style={styles.detailValue}>{profileData.age}</Text>
-                        </View>
+                            <Text style={styles.detailValue}>{profileData?.age}</Text>
+                        </View> */}
                     </View>
                 </View>
 

@@ -31,17 +31,48 @@ interface PickupLocationScreenProps {
 
 const PickupLocationScreen: React.FC<PickupLocationScreenProps> = ({ navigation }) => {
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date()); // 27/08/2025
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date()); 
   const [showDateModal, setShowDateModal] = useState<boolean>(false);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  useEffect(() => {
+  const fetchInitialData = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('pickupDetails');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.pickupDate) {
+          const parsedDate = new Date(parsed.pickupDate);
+          setSelectedDate(parsedDate);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load pickupDate:', error);
+    }
+  };
+
+  fetchInitialData();
+}, []);
+
+
 
   useEffect(() => {
     const fetchLocations = async () => {
-      const prasadType = await AsyncStorage.getItem('prasadType');
-      console.log('prasadType', prasadType)
+      const [prasadType, pickupDetails] = await Promise.all([
+        AsyncStorage.getItem('prasadType'),
+        AsyncStorage.getItem('pickupDetails')
+      ]);
+
+      // Restore date if exists
+      if (pickupDetails) {
+        const parsed = JSON.parse(pickupDetails);
+        if (parsed?.pickupDate) {
+          const parsedDate = new Date(parsed.pickupDate);
+          setSelectedDate(parsedDate);
+        }
+      }
 
       try {
         const response = await ApiGet(`/admin/premvati`);
@@ -107,10 +138,10 @@ const PickupLocationScreen: React.FC<PickupLocationScreenProps> = ({ navigation 
     setShowDateModal(true);
   };
 
-  const handleDateSave = (data: any): void => {
-    setSelectedDate(data.date);
-    setShowDateModal(false);
-  };
+  // const handleDateSave = (data: any): void => {
+  //   setSelectedDate(data.date);
+  //   setShowDateModal(false);
+  // };
 
   const handleBackPress = (): void => {
     navigation?.goBack();
@@ -135,6 +166,96 @@ const PickupLocationScreen: React.FC<PickupLocationScreenProps> = ({ navigation 
     navigation.goBack();
   };
 
+// const handleContinue = async () => {
+//   if (!selectedLocation) {
+//     Alert.alert('Select Location', 'Please select a pickup location.');
+//     return;
+//   }
+
+//   try {
+//     setSubmitting(true);
+
+//     // 1) Read selection & basics
+//     const [storedServing, userId, prasadType, pickupDate] = await Promise.all([
+//       AsyncStorage.getItem('selectedServingItems'),
+//       AsyncStorage.getItem('userId'),
+//       AsyncStorage.getItem('prasadType'),
+//       AsyncStorage.getItem('pickupDetails'), 
+//     ]);
+//     console.log('pickupDate', pickupDate)
+
+//     if (!userId || !prasadType) {
+//       Alert.alert('Missing info', 'User or prasad type not found.');
+//       return;
+//     }
+
+//     // 2) Ensure serving methods selected (robust parse)
+//     let selectedServing: any[] = [];
+//     try {
+//       selectedServing = storedServing ? JSON.parse(storedServing) : [];
+//     } catch {
+//       selectedServing = [];
+//     }
+
+//     const selected = (selectedServing || [])
+//       .map((it: any) => ({
+//         _id: String(it?._id ?? it?.id ?? ''),
+//         quantity: Number(it?.quantity ?? 0),
+//       }))
+//       .filter((it: any) => it._id && it.quantity > 0);
+
+//     if (!selected.length) {
+//       Alert.alert('Select serving', 'Please add at least one serving method.');
+//       return;
+//     }
+
+//     // 3) Build payload for backend
+//     const servingMethodId = selected.map((it: any) => ({
+//       servingMethod: it._id,
+//       quantity: it.quantity,
+//     }));
+
+//     // 4) Create order
+//     const path = `/${prasadType}/create_order`;
+//     const res = await ApiPost(path, { userId, servingMethodId });
+
+//     console.log('res', res)
+
+//     const ok =
+//       res?.status === 201 ||
+//       res?.data?.message === 'Order created successfully' ||
+//       res?.data?.status === 'success';
+
+//     if (!ok) {
+//       Alert.alert('Order failed', res?.data?.message ?? 'Could not create order.');
+//       return;
+//     }
+
+//     const orderPayload = res?.data?.data ?? res?.data ?? {};
+//     const orderId = String(orderPayload?._id ?? orderPayload?.id ?? '');
+
+//     // 5) Persist pickup meta and order for later screens
+//     await Promise.all([
+//       AsyncStorage.setItem('selectedPickupLocation', selectedLocation),
+//       AsyncStorage.setItem('lastCreatedOrder', JSON.stringify(orderPayload)),
+//     ]);
+
+//     // 6) Navigate to Order Summary with state
+//     navigation.navigate('Ordersummary', {
+//       pickupLocationId: selectedLocation,
+//       pickupDate: pickupDate?.pickupDate?.toISOString(),
+//       order: orderPayload,
+//       orderId,
+//     });
+//   } catch (error: any) {
+//     console.error('Error on continue/create order:', error);
+//     Alert.alert('Error', error?.response?.data?.message ?? 'Something went wrong while creating the order.');
+//   } finally {
+//     setSubmitting(false);
+//   }
+// };
+
+
 const handleContinue = async () => {
   if (!selectedLocation) {
     Alert.alert('Select Location', 'Please select a pickup location.');
@@ -144,21 +265,20 @@ const handleContinue = async () => {
   try {
     setSubmitting(true);
 
-    // 1) Read selection & basics
-    const [storedServing, userId, prasadType, pickupDate] = await Promise.all([
+    // 1) Read stored info
+    const [storedServing, userId, prasadType, pickupDateRaw] = await Promise.all([
       AsyncStorage.getItem('selectedServingItems'),
       AsyncStorage.getItem('userId'),
       AsyncStorage.getItem('prasadType'),
-      AsyncStorage.getItem('pickupDetails'), 
+      AsyncStorage.getItem('pickupDetails'),
     ]);
-    console.log('pickupDate', pickupDate)
 
     if (!userId || !prasadType) {
       Alert.alert('Missing info', 'User or prasad type not found.');
       return;
     }
 
-    // 2) Ensure serving methods selected (robust parse)
+    // 2) Parse serving items
     let selectedServing: any[] = [];
     try {
       selectedServing = storedServing ? JSON.parse(storedServing) : [];
@@ -173,20 +293,28 @@ const handleContinue = async () => {
       }))
       .filter((it: any) => it._id && it.quantity > 0);
 
-    if (!selected.length) {
+    if (prasadType === 'self-service' && !selected.length) {
       Alert.alert('Select serving', 'Please add at least one serving method.');
       return;
     }
 
-    // 3) Build payload for backend
-    const servingMethodId = selected.map((it: any) => ({
-      servingMethod: it._id,
-      quantity: it.quantity,
-    }));
-
-    // 4) Create order
+    // 3) Prepare order payload
     const path = `/${prasadType}/create_order`;
-    const res = await ApiPost(path, { userId, servingMethodId });
+
+    const orderPayload: Record<string, any> = {
+      userId,
+    };
+
+    if (prasadType === 'self-service') {
+      const servingMethodId = selected.map((it: any) => ({
+        servingMethod: it._id,
+        quantity: it.quantity,
+      }));
+      orderPayload.servingMethodId = servingMethodId;
+    }
+
+    // 4) Send order creation request
+    const res = await ApiPost(path, orderPayload);
 
     const ok =
       res?.status === 201 ||
@@ -198,29 +326,52 @@ const handleContinue = async () => {
       return;
     }
 
-    const orderPayload = res?.data?.data ?? res?.data ?? {};
-    const orderId = String(orderPayload?._id ?? orderPayload?.id ?? '');
+    const orderData = res?.data?.data ?? res?.data ?? {};
+    const orderId = String(orderData?._id ?? orderData?.id ?? '');
 
-    // 5) Persist pickup meta and order for later screens
+    // 5) Save locally
     await Promise.all([
       AsyncStorage.setItem('selectedPickupLocation', selectedLocation),
-      AsyncStorage.setItem('lastCreatedOrder', JSON.stringify(orderPayload)),
+      AsyncStorage.setItem('lastCreatedOrder', JSON.stringify(orderData)),
     ]);
 
-    // 6) Navigate to Order Summary with state
+    // 6) Navigate
+    const parsedPickupDate = pickupDateRaw ? JSON.parse(pickupDateRaw) : null;
+    const pickupDateISO = parsedPickupDate?.pickupDate ?? new Date().toISOString();
+
     navigation.navigate('Ordersummary', {
       pickupLocationId: selectedLocation,
-      pickupDate: pickupDate?.pickupDate?.toISOString(),
-      order: orderPayload,
+      pickupDate: pickupDateISO,
+      order: orderData,
       orderId,
     });
   } catch (error: any) {
     console.error('Error on continue/create order:', error);
-    Alert.alert('Error', error?.response?.data?.message ?? 'Something went wrong while creating the order.');
+    Alert.alert(
+      'Error',
+      error?.response?.data?.message ?? 'Something went wrong while creating the order.'
+    );
   } finally {
     setSubmitting(false);
   }
 };
+
+const handleDateSave = async (data: any): Promise<void> => {
+  const selected = data.date;
+  setSelectedDate(selected); // update local UI state
+  setShowDateModal(false);   // close modal
+
+  try {
+    await AsyncStorage.setItem(
+      'pickupDetails',
+      JSON.stringify({ pickupDate: selected.toISOString() })
+    );
+    console.log('Saved pickup date to AsyncStorage:', selected.toISOString());
+  } catch (error) {
+    console.error('Failed to save pickup date:', error);
+  }
+};
+
 
 
 

@@ -1,9 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView } from "react-native"
 import Header from "../components/Header"
+import { ApiGet } from "../helper/axios"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 interface Order {
   id: string
@@ -65,8 +67,94 @@ const OrderListingScreen: React.FC<OrderListingScreenProps> = ({ navigation }) =
       grandTotal: 128,
     },
   ]
+  const [paidOrders, setPaidOrders] = useState<Order[]>([])
+const [unpaidOrders, setUnpaidOrders] = useState<Order[]>([])
+const [loading, setLoading] = useState(true)
 
-  const filteredOrders = orders.filter((order) => order.status === activeTab)
+
+const filteredOrders = activeTab === "paid" ? paidOrders : unpaidOrders
+
+ const formatOrder = (order: any): Order => ({
+  id: order._id,
+  orderId: order?.orderId?._id || "",
+  orderDate: order.createdAt?.split("T")[0] || "",
+  orderFor: order.orderDate?.pickupDate?.split("T")[0] || "",
+  pickupLocation: order.pickupLocation?.name || "N/A",
+  status: order.orderType === "paid" ? "paid" : "unpaid",
+
+  items: (order?.orderId?.items || []).map((item: any) => ({
+    name: item?.foodItem?.name || "Unnamed",
+    quantity: item?.quantity || 0,
+    amount: item?.totalPrice || 0,
+    price: item?.foodItem?.price || 0,
+    id: item?._id,
+    foodItemId: item?.foodItem?._id,
+  })),
+
+  servingMethods: (order?.orderId?.servingMethodId || []).map((method: any) => ({
+    name: method?.servingMethod?.name || "Unknown",
+    quantity: method?.quantity || 0,
+    amount: method?.totalPrice || 0,
+    price: method?.servingMethod?.price || 0,
+    id: method?._id,
+    servingMethodId: method?.servingMethod?._id,
+  })),
+
+  user: {
+    id: order?.userId?._id,
+    name: order?.userId?.name,
+  },
+
+  pickupDetails: {
+    id: order?.orderDate?._id,
+    pickupDate: order?.orderDate?.pickupDate,
+    pickupTime: order?.orderDate?.pickupTime,
+  },
+
+  totalFoodItemsPrice: (order?.orderId?.items || []).reduce((sum: number, item: any) => sum + (item?.totalPrice || 0), 0),
+
+  totalServingMethodPrice: (order?.orderId?.servingMethodId || []).reduce((sum: number, method: any) => sum + (method?.totalPrice || 0), 0),
+
+  totalAmount: order?.orderId?.totalAmount || 0,
+
+  createdAt: order?.orderId?.createdAt,
+  updatedAt: order?.orderId?.updatedAt,
+})
+
+
+
+  useEffect(() => {
+  const fetchOrders = async () => {
+    try {
+      const prasadType = await AsyncStorage.getItem("prasadType")
+      const userId = await AsyncStorage.getItem("userId")
+      if (!userId || !prasadType) return
+
+      // Unpaid Orders
+      const unpaidRes = await ApiGet(`/${prasadType}/order-receipts/unpaid/${userId}`)
+      console.log('unpaidRes', unpaidRes)
+      if (unpaidRes?.status === "success") {
+        const formattedUnpaid = unpaidRes.data?.map(formatOrder)
+        console.log('formattedUnpaid', formattedUnpaid)
+        setUnpaidOrders(formattedUnpaid)
+      }
+
+      // Paid Orders
+      const paidRes = await ApiGet(`/${prasadType}/order-receipts/paid/${userId}`)
+      if (paidRes?.status === "success") {
+        const formattedPaid = paidRes.data?.map(formatOrder)
+        setPaidOrders(formattedPaid)
+      }
+    } catch (err) {
+      console.error("Failed to fetch orders:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  fetchOrders()
+}, [])
+
 
   const handleOrderPress = (order: Order): void => {
     navigation?.navigate("OrderDetail", { order })

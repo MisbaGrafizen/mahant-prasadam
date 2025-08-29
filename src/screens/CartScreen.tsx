@@ -69,7 +69,7 @@ const navigation = useNavigation();
 
       const formattedCart = serverCartItems.map(item => ({
         menuItem: {
-          id: item.foodItem._id,
+          id: item.foodItem?._id,
           name: item.foodItem.name,
           price: Number(item.foodItem.price),
           image: item.foodItem.image || '',

@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSelector } from 'react-redux';
 import { colors } from '../theme/colors';
 import { selectCartTotalItems } from '../store/slices/cartSlice';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiGet } from '../helper/axios';
 interface HeaderProps {
   title: string;
   onCartPress?: () => void;
@@ -13,6 +15,26 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ title, onCartPress, showCart = true }) => {
   const cartTotalItems = useSelector(selectCartTotalItems);
+
+    const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const userId = await AsyncStorage.getItem('userId');
+        if (userId) {
+          const userData = await ApiGet(`/user/get_user/${userId}`);
+          console.log('userData', userData)
+          setUser(userData?.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch user:', err);
+      }
+    };
+
+    loadUser();
+  }, []);
+
 
   return (
     <>
@@ -24,8 +46,8 @@ const Header: React.FC<HeaderProps> = ({ title, onCartPress, showCart = true }) 
                             <Icon name="person" size={24} color="#FFFFFF" />
                         </View>
                         <View style={styles.headerTextContainer}>
-                            <Text style={styles.headerTitle}>Swamibapa</Text>
-                            <Text style={styles.headerSubtitle}>Mandal Sanchalak</Text>
+                            <Text style={styles.headerTitle}>{user?.name}</Text>
+                            <Text style={styles.headerSubtitle}>{user?.designation?.name}</Text>
                         </View>
                     </View>
     

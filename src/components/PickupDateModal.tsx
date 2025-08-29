@@ -42,9 +42,11 @@ const PickupDateModal: React.FC<PickupDateModalProps> = ({
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
 
   const eventOptions = [
-    { label: 'Parabdh', value: 'parabdh' },
-    { label: 'Mohonttahl', value: 'mohonttahl' },
-    { label: 'Other', value: 'other' },
+    { label: 'Parasabha', value: 'parasabha' },
+    { label: 'Parayan', value: 'parayan' },
+    { label: 'Utsav', value: 'utsav' },
+    { label: 'Vishesh Sabha', value: 'visheshsabha' },
+    // { label: 'Other', value: 'other' },
   ];
 
   const formatDate = (date: Date): string =>
@@ -68,48 +70,47 @@ const PickupDateModal: React.FC<PickupDateModalProps> = ({
   };
 
 const handleSave = async (): Promise<void> => {
-  if (!selectedEventType) {
-    Alert.alert('Error', 'Please select an event type');
+  if (!selectedDate) {
+    Alert.alert('Error', 'Please select a date');
     return;
   }
 
-  try {
-    // Get packageType from AsyncStorage
-    const packageType = await AsyncStorage.getItem('prasadType');
-    console.log('packageType', packageType);
+  if (!selectedTime) {
+    Alert.alert('Error', 'Please select a time');
+    return;
+  }
 
-    // Format date as dd/mm/yyyy
+  // if (!selectedEventType) {
+  //   Alert.alert('Error', 'Please select an event type');
+  //   return;
+  // }
+
+  try {
+    const packageType = await AsyncStorage.getItem('prasadType');
+
     const day = String(selectedDate.getDate()).padStart(2, '0');
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0'); // Month is 0-based
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const year = selectedDate.getFullYear();
     const formattedDate = `${month}/${day}/${year}`;
 
-    // Format time as hh:mm AM/PM
     const formattedTime = selectedTime.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
     });
 
-    // Build request body
     const body = {
       pickupDate: formattedDate,
       pickupTime: formattedTime,
       eventName: selectedEventType,
     };
 
-    console.log('body', body);
-
-    // Construct URL with packageType as query parameter
     const url = `/${packageType}/date`;
-    console.log('url', url);
-
-    // Send to backend
     const response = await ApiPost(url, body);
-    console.log('response', response);
 
-    // Optionally save in AsyncStorage (for future screens)
-    await AsyncStorage.setItem('pickupDetails', JSON.stringify(body));
+    console.log('response', response)
+
+    await AsyncStorage.setItem('pickupDetails', JSON.stringify(response?.data?.data));
 
     Alert.alert('Success', 'Pickup date saved successfully!', [
       {
@@ -125,6 +126,7 @@ const handleSave = async (): Promise<void> => {
     Alert.alert('Error', error?.response?.data?.message || 'Failed to save pickup date.');
   }
 };
+
 
 
   const dropdownHeight = dropdownAnimation.interpolate({
@@ -224,12 +226,12 @@ const handleSave = async (): Promise<void> => {
         isVisible={isDatePickerVisible}
         mode="date"
         date={selectedDate}
-        minimumDate={new Date()}
+        minimumDate={new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)}
         onConfirm={(d) => { setSelectedDate(d); setDatePickerVisible(false); }}
         onCancel={() => setDatePickerVisible(false)}
-        // Looks like a bottom modal by default; tweak if you want:
-        // pickerContainerStyleIOS={{ borderTopLeftRadius: 16, borderTopRightRadius: 16 }}
-        // headerTextIOS="Pick a date"
+      // Looks like a bottom modal by default; tweak if you want:
+      // pickerContainerStyleIOS={{ borderTopLeftRadius: 16, borderTopRightRadius: 16 }}
+      // headerTextIOS="Pick a date"
       />
 
       {/* Bottom sheet TIME picker */}
@@ -239,7 +241,7 @@ const handleSave = async (): Promise<void> => {
         date={selectedTime}
         onConfirm={(t) => { setSelectedTime(t); setTimePickerVisible(false); }}
         onCancel={() => setTimePickerVisible(false)}
-        // headerTextIOS="Pick a time"
+      // headerTextIOS="Pick a time"
       />
     </Modal>
   );

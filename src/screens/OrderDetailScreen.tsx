@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import {
 import Icon from "react-native-vector-icons/MaterialIcons"
 import { launchImageLibrary } from "react-native-image-picker"
 import Header from "../components/Header"
+import { ApiGet } from "../helper/axios"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 
 interface Order {
@@ -31,6 +33,11 @@ interface Order {
     quantity: number
     amount: number
   }>
+  servingMethods?: Array<{
+    name: string
+    quantity: number
+    amount: number
+  }>
   grandTotal: number
 }
 
@@ -40,6 +47,9 @@ interface OrderDetailScreenProps {
 }
 
 const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ route, navigation }) => {
+
+
+
   const [activeTab, setActiveTab] = useState<"receipt" | "payment">("receipt")
   const order: Order = route?.params?.order || {
     id: "1",
@@ -54,6 +64,50 @@ const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ route, navigation
     ],
     grandTotal: 128,
   }
+// useEffect(() => {
+//   const fetchOrderReceipt = async () => {
+//     const prasadType = await AsyncStorage.getItem("prasadType")
+//     const id = route?.params?.order?.orderId
+
+//     if (!id) return
+
+//     try {
+//       const response = await ApiGet(`${prasadType}/order-receipt/${id}`)
+
+//       const formattedOrder = {
+//         id: response?.data?.orderSummary?._id,
+//         orderId: response?.data?.orderSummary?._id,
+//         orderDate: response?.data?.orderSummary?.createdAt?.split("T")[0],
+//         orderFor: response?.data?.orderSummary?.orderDate?.pickupDate?.split("T")[0],
+//         pickupLocation: response?.data?.orderSummary?.pickupLocation?.name,
+//         status: "unpaid",
+//         items: response?.data?.orderSummary?.items.map((item: any) => ({
+//           name: item.foodItem?.name,
+//           quantity: item.quantity,
+//           amount: item.totalPrice,
+//         })),
+//         servingMethods: response?.data?.orderSummary?.servingMethodId.map((method: any) => ({
+//           name: method.servingMethod?.name,
+//           quantity: method.quantity,
+//           amount: method.totalPrice,
+//         })),
+//         grandTotal: response?.data?.totalAmount,
+//       }
+
+//       setOrders(formattedOrder)
+//     } catch (error) {
+//       console.error("Failed to fetch receipt:", error)
+//       Alert.alert("Error", "Could not fetch receipt details.")
+//     } finally {
+//       setLoading(false)
+//     }
+//   }
+
+//   fetchOrderReceipt()
+// }, [route?.params?.order?.orderId])
+
+console.log('order', order)
+
 
   const handleBackToOrders = (): void => {
     navigation?.goBack()
@@ -98,6 +152,17 @@ const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ route, navigation
       {order.items.map((item, index) => renderTableRow(item, index))}
 
       <View style={styles.divider} />
+      {order.servingMethods?.length > 0 && (
+  <>
+    <View style={styles.divider} />
+    <Text style={[styles.orderDetailText, { marginTop: 12, fontWeight: "bold" }]}>
+      Serving Methods
+    </Text>
+    {renderTableHeader()}
+    {order.servingMethods.map((method, index) => renderTableRow(method, index))}
+  </>
+)}
+
 
       {/* Total */}
       <View style={styles.totalRow}>
@@ -253,69 +318,69 @@ const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ route, navigation
 
   return (
     <View style={styles.container}>
-<Header />
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+      <Header />
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Breadcrumb */}
-        <View style={styles.breadcrumb}>
-          <Text style={styles.breadcrumbText}>
-            Order list &gt; {order.status === "unpaid" ? "Unpaid order list" : "Paid order list"} &gt; Detail
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Breadcrumb */}
+          <View style={styles.breadcrumb}>
+            <Text style={styles.breadcrumbText}>
+              Order list &gt; {order.status === "unpaid" ? "Unpaid order list" : "Paid order list"} &gt; Detail
+            </Text>
+          </View>
 
-        {/* Order Summary Card */}
-        <View style={styles.orderSummaryCard}>
-          <Text style={styles.orderIdText}>Order ID {order.orderId}</Text>
-          <Text style={styles.orderDetailText}>Order on - {order.orderDate}</Text>
-          <Text style={styles.orderDetailText}>Order for - {order.orderFor}</Text>
-          <Text style={styles.orderDetailText}>Pickup location - {order.pickupLocation}</Text>
-        </View>
+          {/* Order Summary Card */}
+          <View style={styles.orderSummaryCard}>
+            <Text style={styles.orderIdText}>Order ID {order.orderId}</Text>
+            <Text style={styles.orderDetailText}>Order on - {order.orderDate}</Text>
+            <Text style={styles.orderDetailText}>Order for - {order.orderFor}</Text>
+            <Text style={styles.orderDetailText}>Pickup location - {order.pickupLocation}</Text>
+          </View>
 
-        {/* Action Buttons */}
-        {order.status === "unpaid" ? (
-          <View style={styles.actionButtons}>
+          {/* Action Buttons */}
+          {order.status === "unpaid" ? (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.receiptButton, activeTab === "receipt" && styles.activeReceiptButton]}
+                onPress={handleViewReceipt}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.actionButtonText, activeTab === "receipt" && styles.activeButtonText]}>
+                  Click to view receipt
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.paymentButton, activeTab === "payment" && styles.activePaymentButton]}
+                onPress={handlePayOutstanding}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.actionButtonText, activeTab === "payment" && styles.activeButtonText]}>
+                  Pay outstanding now
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <TouchableOpacity
-              style={[styles.actionButton, styles.receiptButton, activeTab === "receipt" && styles.activeReceiptButton]}
+              style={[styles.actionButton, styles.paidReceiptButton]}
               onPress={handleViewReceipt}
               activeOpacity={0.8}
             >
-              <Text style={[styles.actionButtonText, activeTab === "receipt" && styles.activeButtonText]}>
-                Click to view receipt
-              </Text>
+              <Text style={styles.actionButtonText}>Click to view receipt</Text>
             </TouchableOpacity>
+          )}
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.paymentButton, activeTab === "payment" && styles.activePaymentButton]}
-              onPress={handlePayOutstanding}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.actionButtonText, activeTab === "payment" && styles.activeButtonText]}>
-                Pay outstanding now
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.paidReceiptButton]}
-            onPress={handleViewReceipt}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionButtonText}>Click to view receipt</Text>
+          {/* Content */}
+          {activeTab === "receipt" ? renderReceipt() : <PaymentForm order={order} navigation={navigation} />}
+
+          {/* Back Button */}
+          <TouchableOpacity style={styles.backButton} onPress={handleBackToOrders} activeOpacity={0.7}>
+            <Icon name="arrow-back" size={24} color="#666666" />
+            <Text style={styles.backButtonText}>Click here to go back to order list</Text>
           </TouchableOpacity>
-        )}
-
-        {/* Content */}
-        {activeTab === "receipt" ? renderReceipt() : <PaymentForm order={order} navigation={navigation} />}
-
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={handleBackToOrders} activeOpacity={0.7}>
-          <Icon name="arrow-back" size={24} color="#666666" />
-          <Text style={styles.backButtonText}>Click here to go back to order list</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   )
 }
@@ -432,7 +497,7 @@ const styles = StyleSheet.create({
   },
   unpaidReceiptCard: {
     borderColor: "#F44336",
-    borderWidth: 1 ,
+    borderWidth: 1,
   },
   orderDetails: {
     marginBottom: 24,
